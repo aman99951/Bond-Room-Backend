@@ -15,6 +15,7 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
+from django.http import JsonResponse
 from django.urls import include, path
 from django.views.generic import TemplateView
 from rest_framework_simplejwt.views import TokenRefreshView
@@ -22,7 +23,16 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from core.auth import BondRoomTokenObtainPairView
 from core.schema import BondRoomSchemaView
 
+def api_root(_request):
+    return JsonResponse({
+        'status': 'ok',
+        'message': 'Bond Room backend is running',
+        'docs': '/api/docs/',
+    })
+
+
 urlpatterns = [
+    path('', api_root, name='api_root'),
     path('admin/', admin.site.urls),
     path('api/login/', BondRoomTokenObtainPairView.as_view(), name='api_login'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
