@@ -16,6 +16,14 @@ from pathlib import Path
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Use a pure-Python MySQL driver on serverless platforms where mysqlclient can't compile.
+try:
+    import pymysql
+
+    pymysql.install_as_MySQLdb()
+except Exception:
+    pass
+
 ENV_PATH = BASE_DIR / ".env"
 if ENV_PATH.exists():
     for line in ENV_PATH.read_text(encoding="utf-8").splitlines():
