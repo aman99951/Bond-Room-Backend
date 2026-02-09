@@ -1,6 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "routes": [
-    { "src": "/(.*)", "dest": "api/wsgi.py" }
+  "functions": {
+    "api/**/*.py": {
+      "excludeFiles": "{tests/**,__tests__/**,**/*.test.py,**/test_*.py,fixtures/**,__fixtures__/**,static/**,assets/**}"
+    }
+  },
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/api/wsgi.py" }
   ]
 }
