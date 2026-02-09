@@ -5,7 +5,5 @@
       "excludeFiles": "{tests/**,__tests__/**,**/*.test.py,**/test_*.py,fixtures/**,__fixtures__/**,static/**,assets/**}"
     }
   },
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/api/wsgi.py" }
-  ]
+  "routes": [{ "src": "/(.*)", "dest": "/api/index.py" }]
 }
