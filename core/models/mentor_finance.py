@@ -20,7 +20,7 @@ class MentorProfile(models.Model):
     )
     is_active = models.BooleanField(default=True)
     sessions_completed = models.PositiveIntegerField(default=0)
-    updated_at = models.DateTimeField(auto_now=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
 
     def __str__(self) -> str:
         return f"Profile for mentor {self.mentor_id}"
@@ -51,7 +51,7 @@ class SessionDisposition(models.Model):
     )
     note = models.TextField(blank=True)
     decided_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
 
     def __str__(self) -> str:
         return f"Disposition for session {self.session_id}"
@@ -73,7 +73,7 @@ class MentorWallet(models.Model):
     total_donated = models.DecimalField(
         max_digits=10, decimal_places=2, default=Decimal("0.00")
     )
-    updated_at = models.DateTimeField(auto_now=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
 
     def __str__(self) -> str:
         return f"Wallet for mentor {self.mentor_id}"
@@ -109,6 +109,7 @@ class PayoutTransaction(models.Model):
     note = models.TextField(blank=True)
     processed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
 
     class Meta:
         ordering = ["-created_at", "-id"]
@@ -137,6 +138,7 @@ class DonationTransaction(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="completed")
     note = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
 
     class Meta:
         ordering = ["-created_at", "-id"]
@@ -171,7 +173,7 @@ class SessionIssueReport(models.Model):
     resolution_notes = models.TextField(blank=True)
     resolved_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
 
     class Meta:
         ordering = ["-created_at", "-id"]

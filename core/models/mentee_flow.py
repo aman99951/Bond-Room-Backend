@@ -22,6 +22,7 @@ class ParentConsentVerification(models.Model):
     otp_attempts = models.PositiveSmallIntegerField(default=0)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
     verified_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
 
     def __str__(self) -> str:
         return f"Parent consent for mentee {self.mentee_id}"
@@ -42,7 +43,7 @@ class MenteePreferences(models.Model):
     comfort_level = models.CharField(max_length=30, blank=True)
     preferred_session_minutes = models.PositiveSmallIntegerField(null=True, blank=True)
     preferred_mentor_types = models.JSONField(default=list, blank=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
 
     def __str__(self) -> str:
         return f"Preferences for mentee {self.mentee_id}"
@@ -57,6 +58,7 @@ class MentorAvailabilitySlot(models.Model):
     timezone = models.CharField(max_length=50, blank=True)
     is_available = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
 
     class Meta:
         ordering = ["start_time", "id"]
@@ -102,8 +104,9 @@ class Session(models.Model):
     mentee_notes = models.TextField(blank=True)
     mentor_notes = models.TextField(blank=True)
     join_url = models.URLField(blank=True)
+    host_join_url = models.URLField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
 
     class Meta:
         ordering = ["-scheduled_start", "-id"]
@@ -120,6 +123,7 @@ class SessionFeedback(models.Model):
     topics_discussed = models.JSONField(default=list, blank=True)
     comments = models.TextField(blank=True)
     submitted_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
 
     def __str__(self) -> str:
         return f"Feedback for session {self.session_id}"

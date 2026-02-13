@@ -34,6 +34,7 @@ class MentorIdentityVerification(models.Model):
     submitted_at = models.DateTimeField(auto_now_add=True)
     reviewed_at = models.DateTimeField(null=True, blank=True)
     reviewer_notes = models.TextField(blank=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
 
     def __str__(self) -> str:
         return f"Identity verification for mentor {self.mentor_id}"
@@ -55,7 +56,7 @@ class MentorContactVerification(models.Model):
     phone_otp_sent_at = models.DateTimeField(null=True, blank=True)
     phone_otp_expires_at = models.DateTimeField(null=True, blank=True)
     phone_otp_attempts = models.PositiveSmallIntegerField(default=0)
-    updated_at = models.DateTimeField(auto_now=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
 
     def __str__(self) -> str:
         return f"Contact verification for mentor {self.mentor_id}"
@@ -87,10 +88,11 @@ class MentorOnboardingStatus(models.Model):
     final_approval_status = models.CharField(
         max_length=20, choices=STATUS_CHOICES, default="pending"
     )
+    final_rejection_reason = models.TextField(blank=True)
     current_status = models.CharField(
         max_length=20, choices=STATUS_CHOICES, default="in_review"
     )
-    updated_at = models.DateTimeField(auto_now=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
 
     def __str__(self) -> str:
         return f"Onboarding status for mentor {self.mentor_id}"
@@ -103,6 +105,7 @@ class TrainingModule(models.Model):
     lesson_outline = models.JSONField(default=list, blank=True)
     is_active = models.BooleanField(default=True)
     estimated_minutes = models.PositiveSmallIntegerField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
 
     class Meta:
         ordering = ["order", "id"]
@@ -128,6 +131,7 @@ class MentorTrainingProgress(models.Model):
     progress_percent = models.PositiveSmallIntegerField(default=0)
     completed_at = models.DateTimeField(null=True, blank=True)
     last_activity_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
 
     class Meta:
         unique_together = ("mentor", "module")

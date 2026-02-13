@@ -67,6 +67,15 @@ class MentorSerializer(serializers.ModelSerializer):
         model = Mentor
         fields = "__all__"
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["weekly_availability"] = data.get("availability") or []
+        data["availability"] = MentorAvailabilitySlotSerializer(
+            instance.availability_slots.all().order_by("start_time", "id"),
+            many=True,
+        ).data
+        return data
+
 
 class MenteePreferencesSerializer(serializers.ModelSerializer):
     class Meta:
@@ -99,10 +108,26 @@ class SessionFeedbackSerializer(serializers.ModelSerializer):
 
 class SessionSerializer(serializers.ModelSerializer):
     feedback = SessionFeedbackSerializer(read_only=True)
+    mentee_name = serializers.SerializerMethodField()
+    mentee_first_name = serializers.CharField(source="mentee.first_name", read_only=True)
+    mentee_last_name = serializers.CharField(source="mentee.last_name", read_only=True)
 
     class Meta:
         model = Session
         fields = "__all__"
+        extra_kwargs = {
+            "mentee": {"required": False},
+        }
+
+    def get_mentee_name(self, obj):
+        first_name = (obj.mentee.first_name or "").strip() if obj.mentee_id else ""
+        last_name = (obj.mentee.last_name or "").strip() if obj.mentee_id else ""
+        full_name = " ".join(part for part in [first_name, last_name] if part).strip()
+        if full_name:
+            return full_name
+        if obj.mentee_id:
+            return f"Mentee #{obj.mentee_id}"
+        return "Mentee"
 
     def validate(self, attrs):
         start = attrs.get("scheduled_start")
@@ -194,6 +219,9 @@ class MenteeRequestSerializer(serializers.ModelSerializer):
     class Meta:
         model = MenteeRequest
         fields = "__all__"
+        extra_kwargs = {
+            "mentee": {"required": False},
+        }
 
 
 class MenteeRegisterSerializer(serializers.Serializer):
@@ -247,6 +275,7 @@ class MentorRegisterSerializer(serializers.Serializer):
     timezone = serializers.CharField(max_length=50, required=False, allow_blank=True)
     qualification = serializers.CharField(max_length=150, required=False, allow_blank=True)
     bio = serializers.CharField(required=False, allow_blank=True)
+    avatar = serializers.URLField(required=False, allow_blank=True)
     consent = serializers.BooleanField(required=False, default=False)
     password = serializers.CharField(required=False, allow_blank=True, write_only=True)
 
@@ -270,6 +299,78 @@ class MentorRegisterSerializer(serializers.Serializer):
 
     def to_representation(self, instance):
         return MentorSerializer(instance).data
+
+
+class AdminRegisterSerializer(serializers.Serializer):
+    first_name = serializers.CharField(max_length=100)
+    last_name = serializers.CharField(max_length=100)
+    email = serializers.EmailField()
+    mobile = serializers.CharField(max_length=20)
+    password = serializers.CharField(write_only=True, min_length=6)
+
+    def create(self, validated_data):
+        email = validated_data["email"].strip().lower()
+        password = validated_data["password"]
+        first_name = validated_data["first_name"].strip()
+        last_name = validated_data["last_name"].strip()
+        username = ensure_username(email.split("@")[0])
+        user, created = User.objects.get_or_create(
+            email=email,
+            defaults={
+                "username": username,
+                "first_name": first_name,
+                "last_name": last_name,
+            },
+        )
+
+        profile = UserProfile.objects.filter(user=user).first()
+        if profile and profile.role != "admin":
+            raise serializers.ValidationError(
+                {"email": "This email is already registered for a non-admin account."}
+            )
+
+        user.first_name = first_name
+        user.last_name = last_name
+        user.is_active = True
+        user.set_password(password)
+        user.save(update_fields=["first_name", "last_name", "is_active", "password"])
+
+        UserProfile.objects.update_or_create(user=user, defaults={"role": "admin"})
+        return user
+
+    def to_representation(self, instance):
+        return {
+            "id": instance.id,
+            "first_name": instance.first_name,
+            "last_name": instance.last_name,
+            "email": instance.email,
+            "role": "admin",
+        }
+
+
+class AdminOnboardingDecisionSerializer(serializers.Serializer):
+    identity_decision = serializers.ChoiceField(
+        choices=MentorIdentityVerification.STATUS_CHOICES, required=False
+    )
+    training_status = serializers.ChoiceField(
+        choices=MentorOnboardingStatus.STATUS_CHOICES, required=False
+    )
+    final_approval_status = serializers.ChoiceField(
+        choices=MentorOnboardingStatus.STATUS_CHOICES, required=False
+    )
+    reviewer_notes = serializers.CharField(required=False, allow_blank=True)
+    final_rejection_reason = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        if not attrs:
+            raise serializers.ValidationError("Provide at least one decision field.")
+        if attrs.get("final_approval_status") == "rejected" and not attrs.get(
+            "final_rejection_reason", ""
+        ).strip():
+            raise serializers.ValidationError(
+                {"final_rejection_reason": "Reject reason is required for final approval rejection."}
+            )
+        return attrs
 
 
 class ParentOtpSendSerializer(serializers.Serializer):

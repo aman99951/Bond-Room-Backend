@@ -5,7 +5,7 @@ from django.db.models import Avg, Count, Q, Sum
 from django.utils import timezone
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -44,6 +44,8 @@ from .permissions import (
     user_role,
 )
 from .serializers import (
+    AdminOnboardingDecisionSerializer,
+    AdminRegisterSerializer,
     DonationTransactionSerializer,
     MatchRecommendationSerializer,
     MentorAvailabilitySlotSerializer,
@@ -75,6 +77,8 @@ from .serializers import (
     hash_otp,
     otp_expiry,
 )
+from .zoom import maybe_attach_zoom_links, zoom_is_configured
+from .signals import generate_recommendations_for_request
 
 
 def current_mentee_id(request):
@@ -120,6 +124,17 @@ class MentorRegisterView(GenericAPIView):
         serializer.is_valid(raise_exception=True)
         mentor = serializer.save()
         return Response(serializer.to_representation(mentor), status=status.HTTP_201_CREATED)
+
+
+class AdminRegisterView(GenericAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = AdminRegisterSerializer
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        admin_user = serializer.save()
+        return Response(serializer.to_representation(admin_user), status=status.HTTP_201_CREATED)
 
 
 class ParentConsentSendOtpView(GenericAPIView):
@@ -210,13 +225,11 @@ class MentorContactSendOtpView(GenericAPIView):
         expiry = otp_expiry()
         otp_hash = hash_otp(otp)
         if channel == "email":
-            verification.email_verified = False
             verification.email_otp_hash = otp_hash
             verification.email_otp_sent_at = now
             verification.email_otp_expires_at = expiry
             verification.email_otp_attempts = 0
         else:
-            verification.phone_verified = False
             verification.phone_otp_hash = otp_hash
             verification.phone_otp_sent_at = now
             verification.phone_otp_expires_at = expiry
@@ -361,7 +374,7 @@ class MenteeViewSet(viewsets.ModelViewSet):
 
 
 class MentorViewSet(viewsets.ModelViewSet):
-    queryset = Mentor.objects.all().order_by("-created_at")
+    queryset = Mentor.objects.all().prefetch_related("availability_slots").order_by("-created_at")
     serializer_class = MentorSerializer
     permission_classes = [IsAuthenticatedWithAppRole]
 
@@ -397,10 +410,15 @@ class MentorViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["get"], url_path="recommended")
     def recommended(self, request):
         require_role(request, {ROLE_MENTEE, ROLE_ADMIN})
+        role = user_role(request.user)
         mentee_request_id = request.query_params.get("mentee_request_id")
         mentee_id = request.query_params.get("mentee_id")
-        if user_role(request.user) == ROLE_MENTEE:
-            mentee_id = current_mentee_id(request)
+        my_mentee_id = None
+        if role == ROLE_MENTEE:
+            my_mentee_id = current_mentee_id(request)
+            if not my_mentee_id:
+                raise PermissionDenied("Mentee profile not found for this user.")
+            mentee_id = my_mentee_id
 
         if not mentee_request_id and not mentee_id:
             return Response({"detail": "Provide mentee_request_id or mentee_id."}, status=400)
@@ -408,22 +426,19 @@ class MentorViewSet(viewsets.ModelViewSet):
         req = None
         if mentee_request_id:
             req = MenteeRequest.objects.filter(id=mentee_request_id).first()
-            if req and user_role(request.user) == ROLE_MENTEE and req.mentee_id != current_mentee_id(request):
+            if req and role == ROLE_MENTEE and req.mentee_id != my_mentee_id:
                 raise PermissionDenied("You can only access your own recommendations.")
         elif mentee_id:
             req = MenteeRequest.objects.filter(mentee_id=mentee_id).order_by("-created_at").first()
         if not req:
             return Response({"detail": "No request found."}, status=404)
 
+        should_refresh = role == ROLE_MENTEE or request.query_params.get("refresh") in {"1", "true", "True"}
+        if should_refresh:
+            generate_recommendations_for_request(req)
+
         recs = MatchRecommendation.objects.filter(mentee_request=req).select_related("mentor").order_by("-score")
-        if recs.exists():
-            return Response(MatchRecommendationSerializer(recs, many=True).data)
-        mentors = Mentor.objects.all().order_by("-average_rating", "id")[:10]
-        fallback = [
-            {"mentor": MentorSerializer(mentor).data, "score": 0, "explanation": "No recommendation generated yet."}
-            for mentor in mentors
-        ]
-        return Response(fallback)
+        return Response(MatchRecommendationSerializer(recs, many=True).data)
 
     @action(detail=True, methods=["get", "put", "patch"], url_path="profile")
     def profile(self, request, pk=None):
@@ -503,6 +518,114 @@ class MentorViewSet(viewsets.ModelViewSet):
             }
         )
 
+    @action(detail=True, methods=["post"], url_path="admin-decision")
+    def admin_decision(self, request, pk=None):
+        require_role(request, {ROLE_ADMIN})
+        mentor = self.get_object()
+        serializer = AdminOnboardingDecisionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        decision = serializer.validated_data
+
+        onboarding, _ = MentorOnboardingStatus.objects.get_or_create(mentor=mentor)
+        identity = MentorIdentityVerification.objects.filter(mentor=mentor).first()
+
+        def to_onboarding_identity_status(identity_decision, fallback):
+            if not identity_decision:
+                return fallback
+            if identity_decision == "verified":
+                return "completed"
+            if identity_decision == "rejected":
+                return "rejected"
+            if identity_decision == "in_review":
+                return "in_review"
+            return "pending"
+
+        def compute_current_status(stages):
+            if any(item == "rejected" for item in stages):
+                return "rejected"
+            if all(item == "completed" for item in stages):
+                return "completed"
+            if all(item == "pending" for item in stages):
+                return "pending"
+            return "in_review"
+
+        with transaction.atomic():
+            identity_decision = decision.get("identity_decision")
+            reviewer_notes = decision.get("reviewer_notes", "").strip()
+            if identity and identity_decision:
+                identity.status = identity_decision
+                identity.reviewed_at = timezone.now()
+                if reviewer_notes:
+                    identity.reviewer_notes = reviewer_notes
+                identity.save(update_fields=["status", "reviewed_at", "reviewer_notes", "updated_at"])
+
+            next_identity_status = to_onboarding_identity_status(
+                identity_decision,
+                onboarding.identity_status,
+            )
+            next_training_status = decision.get("training_status", onboarding.training_status)
+            next_final_status = decision.get("final_approval_status", onboarding.final_approval_status)
+            next_final_rejection_reason = decision.get(
+                "final_rejection_reason",
+                onboarding.final_rejection_reason,
+            ).strip()
+            if next_final_status == "rejected" and not next_final_rejection_reason:
+                raise ValidationError(
+                    {"final_rejection_reason": "Reject reason is required for final approval rejection."}
+                )
+            if next_final_status != "rejected":
+                next_final_rejection_reason = ""
+
+            next_current_status = compute_current_status(
+                [
+                    onboarding.application_status,
+                    next_identity_status,
+                    onboarding.contact_status,
+                    next_training_status,
+                    next_final_status,
+                ]
+            )
+
+            onboarding.identity_status = next_identity_status
+            onboarding.training_status = next_training_status
+            onboarding.final_approval_status = next_final_status
+            onboarding.final_rejection_reason = next_final_rejection_reason
+            onboarding.current_status = next_current_status
+            onboarding.save(
+                update_fields=[
+                    "identity_status",
+                    "training_status",
+                    "final_approval_status",
+                    "final_rejection_reason",
+                    "current_status",
+                    "updated_at",
+                ]
+            )
+
+        modules = TrainingModule.objects.filter(is_active=True).order_by("order", "id")
+        progress = MentorTrainingProgress.objects.filter(
+            mentor=mentor, module_id__in=modules.values_list("id", flat=True)
+        )
+        progress_map = {item.module_id: item for item in progress}
+        module_payload = []
+        for module in modules:
+            item = progress_map.get(module.id)
+            module_payload.append(
+                {
+                    **TrainingModuleSerializer(module).data,
+                    "status": item.status if item else "locked",
+                    "progress_percent": item.progress_percent if item else 0,
+                }
+            )
+
+        return Response(
+            {
+                "status": MentorOnboardingStatusSerializer(onboarding).data,
+                "identity_verification": MentorIdentityVerificationSerializer(identity).data if identity else None,
+                "training_modules": module_payload,
+            }
+        )
+
 class MenteeRequestViewSet(viewsets.ModelViewSet):
     queryset = MenteeRequest.objects.all().order_by("-created_at")
     serializer_class = MenteeRequestSerializer
@@ -533,6 +656,8 @@ class MenteeRequestViewSet(viewsets.ModelViewSet):
                 raise PermissionDenied("Mentee profile not found for this user.")
             serializer.save(mentee_id=my_id)
             return
+        if not serializer.validated_data.get("mentee"):
+            raise ValidationError({"mentee": ["This field is required."]})
         serializer.save()
 
     @action(detail=True, methods=["get"], url_path="recommendations")
@@ -691,6 +816,14 @@ class SessionViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(status=status_value)
         return queryset
 
+    @action(detail=True, methods=["get"], url_path="mentee-profile")
+    def mentee_profile(self, request, pk=None):
+        require_role(request, {ROLE_MENTOR, ROLE_ADMIN})
+        session = self.get_object()
+        if user_role(request.user) == ROLE_MENTOR and session.mentor_id != current_mentor_id(request):
+            raise PermissionDenied("You can only access mentee profiles for your own sessions.")
+        return Response(MenteeSerializer(session.mentee).data)
+
     def perform_create(self, serializer):
         role = user_role(self.request.user)
         if role == ROLE_MENTEE:
@@ -699,11 +832,52 @@ class SessionViewSet(viewsets.ModelViewSet):
                 raise PermissionDenied("Mentee profile not found for this user.")
             session = serializer.save(mentee_id=mentee_id)
         elif role == ROLE_ADMIN:
+            if not serializer.validated_data.get("mentee"):
+                raise ValidationError({"mentee": ["This field is required."]})
             session = serializer.save()
         else:
             raise PermissionDenied("Only mentee or admin can create sessions.")
         if session.availability_slot_id:
             MentorAvailabilitySlot.objects.filter(id=session.availability_slot_id).update(is_available=False)
+
+    def perform_update(self, serializer):
+        session = serializer.save()
+        meeting_links = maybe_attach_zoom_links(session)
+        if meeting_links:
+            Session.objects.filter(id=session.id).update(**meeting_links)
+
+    @action(detail=True, methods=["post"], url_path="join-link")
+    def join_link(self, request, pk=None):
+        session = self.get_object()
+        role = user_role(request.user)
+        if role == ROLE_MENTOR and session.mentor_id != current_mentor_id(request):
+            raise PermissionDenied("You can only access your own sessions.")
+        if role == ROLE_MENTEE and session.mentee_id != current_mentee_id(request):
+            raise PermissionDenied("You can only access your own sessions.")
+        if session.status not in {"approved", "scheduled"}:
+            return Response({"detail": "Session not approved yet."}, status=status.HTTP_400_BAD_REQUEST)
+        if not zoom_is_configured():
+            return Response({"detail": "Zoom credentials are not configured."}, status=status.HTTP_400_BAD_REQUEST)
+
+        meeting_links = maybe_attach_zoom_links(session)
+        if meeting_links:
+            if meeting_links.get("error"):
+                return Response(
+                    {"detail": meeting_links.get("error")},
+                    status=status.HTTP_502_BAD_GATEWAY,
+                )
+            Session.objects.filter(id=session.id).update(**meeting_links)
+            session.refresh_from_db(fields=["join_url", "host_join_url"])
+
+        if not session.join_url and not session.host_join_url:
+            return Response({"detail": "Unable to create Zoom meeting."}, status=status.HTTP_502_BAD_GATEWAY)
+
+        return Response(
+            {
+                "join_url": session.join_url,
+                "host_join_url": session.host_join_url,
+            }
+        )
 
     @action(detail=True, methods=["get", "post"], url_path="feedback")
     def feedback(self, request, pk=None):

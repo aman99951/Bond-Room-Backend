@@ -1,5 +1,6 @@
 asgiref==3.11.1
 Django==5.2.11
+django-cors-headers==4.6.0
 djangorestframework==3.16.1
 djangorestframework_simplejwt==5.5.1
 dj-database-url==2.2.0

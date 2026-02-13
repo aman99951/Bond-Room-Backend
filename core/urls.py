@@ -2,6 +2,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from .api_views import (
+    AdminRegisterView,
     DonationTransactionViewSet,
     LogoutView,
     MatchRecommendationViewSet,
@@ -55,6 +56,7 @@ router.register(r"session-issue-reports", SessionIssueReportViewSet, basename="s
 
 
 urlpatterns = [
+    path("auth/register/admin/", AdminRegisterView.as_view(), name="register-admin"),
     path("auth/register/mentee/", MenteeRegisterView.as_view(), name="register-mentee"),
     path("auth/register/mentor/", MentorRegisterView.as_view(), name="register-mentor"),
     path("auth/parent-consent/send-otp/", ParentConsentSendOtpView.as_view(), name="parent-send-otp"),

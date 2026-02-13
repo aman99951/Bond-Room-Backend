@@ -74,6 +74,22 @@ class Command(BaseCommand):
             "Mumbai, Maharashtra",
             "Delhi, India",
         ]
+        mentor_bios = [
+            "I support students through exam anxiety using practical routines, reflection prompts, and calm planning techniques tailored to their weekly schedule.",
+            "My mentoring focuses on confidence-building, communication, and consistent study habits so students can perform better without burnout.",
+            "I help learners break big goals into manageable steps, improve focus, and stay motivated during high-pressure academic periods.",
+            "With years of guidance experience, I work with students on emotional balance, parent-pressure conversations, and healthy productivity systems.",
+            "I specialize in helping students handle uncertainty about careers and academics with structured thinking, clarity exercises, and action plans.",
+            "My sessions combine empathetic listening and practical strategy so students feel understood and leave with clear next steps.",
+        ]
+        avatar_urls = [
+            "https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg",
+            "https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg",
+            "https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg",
+            "https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg",
+            "https://images.pexels.com/photos/733872/pexels-photo-733872.jpeg",
+            "https://images.pexels.com/photos/91227/pexels-photo-91227.jpeg",
+        ]
         timezones = ["Asia/Kolkata", "Asia/Dubai", "Asia/Singapore"]
         access_needs = [
             "",
@@ -143,7 +159,8 @@ class Command(BaseCommand):
                 availability=random.sample(availability_pool, k=2),
                 timezone=random.choice(timezones),
                 qualification="Retired Teacher",
-                bio="I love helping students build confidence and study habits.",
+                bio=random.choice(mentor_bios),
+                avatar=random.choice(avatar_urls),
                 average_rating=round(random.uniform(4.0, 5.0), 2),
                 response_time_minutes=random.randint(30, 180),
                 consent=True,

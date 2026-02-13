@@ -26,7 +26,9 @@ class Mentee(models.Model):
     parent_guardian_consent = models.BooleanField(default=False)
     parent_mobile = models.CharField(max_length=20, blank=True)
     record_consent = models.BooleanField(default=False)
+    avatar = models.FileField(upload_to='mentee/avatar/', null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
 
     def __str__(self) -> str:
         return f"{self.first_name} {self.last_name}".strip()

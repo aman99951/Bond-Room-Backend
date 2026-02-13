@@ -117,27 +117,27 @@ def _call_openai(req: MenteeRequest, mentors):
         return None, str(exc)
 
 
-@receiver(post_save, sender=MenteeRequest)
-def auto_recommend_on_request(sender, instance: MenteeRequest, created: bool, **kwargs):
-    if not created:
-        return
+def generate_recommendations_for_request(
+    instance: MenteeRequest, *, replace_existing: bool = True
+):
     if not instance.allow_auto_match or instance.safety_flag:
         return
 
     max_mentors = _get_max_int("OPENAI_MAX_MENTORS", 0)
     mentor_qs = Mentor.objects.all()
-    mentors = list(mentor_qs[:max_mentors]) if max_mentors > 0 else list(mentor_qs)
-    mentors = filter_mentors(instance, mentors)
-    if not mentors:
+    mentor_pool = list(mentor_qs[:max_mentors]) if max_mentors > 0 else list(mentor_qs[:25])
+    if not mentor_pool:
         return
+    mentors = filter_mentors(instance, mentor_pool)
+    if not mentors:
+        mentors = mentor_pool
 
-    # Clear any previous auto recommendations just in case
-    MatchRecommendation.objects.filter(
-        mentee_request=instance, source__in=["openai", "rules"]
-    ).delete()
+    if replace_existing:
+        MatchRecommendation.objects.filter(
+            mentee_request=instance, source__in=["openai", "rules"]
+        ).delete()
 
-    # Try OpenAI first
-    result, error = _call_openai(instance, mentors)
+    result, _error = _call_openai(instance, mentors)
     if result and result.get("recs"):
         max_recs = _get_max_int("OPENAI_MAX_RECOMMENDATIONS", 3)
         for rec in result["recs"][:max_recs]:
@@ -165,9 +165,9 @@ def auto_recommend_on_request(sender, instance: MenteeRequest, created: bool, **
             )
         return
 
-    # Fallback: rule-based recommendations
     scored = score_mentors(instance, mentors)
-    for rec in scored[:3]:
+    max_recs = _get_max_int("OPENAI_MAX_RECOMMENDATIONS", 3)
+    for rec in scored[:max_recs]:
         MatchRecommendation.objects.create(
             mentee_request=instance,
             mentor=rec.mentor,
@@ -180,3 +180,10 @@ def auto_recommend_on_request(sender, instance: MenteeRequest, created: bool, **
             status="suggested",
             source="rules",
         )
+
+
+@receiver(post_save, sender=MenteeRequest)
+def auto_recommend_on_request(sender, instance: MenteeRequest, created: bool, **kwargs):
+    if not created:
+        return
+    generate_recommendations_for_request(instance)

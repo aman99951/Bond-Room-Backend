@@ -72,6 +72,7 @@ class MenteeRequest(models.Model):
     allow_auto_match = models.BooleanField(default=True)
     safety_flag = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
 
     def __str__(self) -> str:
         return f"Request #{self.id} for {self.mentee_id}"
@@ -107,6 +108,7 @@ class MatchRecommendation(models.Model):
     response_id = models.CharField(max_length=100, blank=True)
     prompt_hash = models.CharField(max_length=64, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
 
     def __str__(self) -> str:
         return f"Rec #{self.id} (req {self.mentee_request_id} → mentor {self.mentor_id})"

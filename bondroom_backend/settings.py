@@ -12,6 +12,8 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 import os
 from pathlib import Path
+from datetime import timedelta
+
 import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -51,6 +53,7 @@ ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_env.split(",") if host.s
 # Application definition
 
 INSTALLED_APPS = [
+    'corsheaders',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -63,6 +66,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -107,20 +111,34 @@ DATABASES = {
     }
 }'''
 
-# NEW: PostgreSQL support for Vercel deployment
-DATABASE_URL = os.environ.get(
-    'DATABASE_URL',
-    # This is your Neon database URL - used as default if no env variable is set
-   'postgresql://neondb_owner:npg_py3u1UqmfCWT@ep-tiny-cake-ai1dklqa-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require'
-)
+# Database configuration:
+# - Require DATABASE_URL from environment (Neon/Postgres).
+# - Use conn_max_age=0 by default for pooled/serverless Postgres to avoid stale connections.
+database_url = os.environ.get('DATABASE_URL', '').strip()
+db_conn_max_age = int(os.environ.get('DB_CONN_MAX_AGE', '0'))
+db_connect_timeout = int(os.environ.get('DB_CONNECT_TIMEOUT', '10'))
+db_sslmode = os.environ.get('DB_SSLMODE', 'require')
+
+if not database_url:
+    raise RuntimeError("DATABASE_URL is required. SQLite fallback has been removed.")
+
+if 'channel_binding=require' in database_url:
+    database_url = database_url.replace('channel_binding=require', 'channel_binding=prefer')
 
 DATABASES = {
-    'default': dj_database_url.config(
-        default=DATABASE_URL,
-        conn_max_age=600,
+    'default': dj_database_url.parse(
+        database_url,
+        conn_max_age=db_conn_max_age,
         conn_health_checks=True,
     )
 }
+DATABASES['default'].setdefault('OPTIONS', {})
+DATABASES['default']['OPTIONS'].setdefault('sslmode', db_sslmode)
+DATABASES['default']['OPTIONS'].setdefault('connect_timeout', db_connect_timeout)
+DATABASES['default']['OPTIONS'].setdefault('keepalives', 1)
+DATABASES['default']['OPTIONS'].setdefault('keepalives_idle', 30)
+DATABASES['default']['OPTIONS'].setdefault('keepalives_interval', 10)
+DATABASES['default']['OPTIONS'].setdefault('keepalives_count', 5)
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -158,7 +176,12 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
     },
@@ -176,4 +199,18 @@ REST_FRAMEWORK = {
     ),
 }
 
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=int(os.environ.get('JWT_ACCESS_HOURS', '12'))),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=int(os.environ.get('JWT_REFRESH_DAYS', '7'))),
+    'AUTH_HEADER_TYPES': ('Bearer',),
+}
+
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
+
+cors_allowed_origins_env = os.environ.get(
+    "CORS_ALLOWED_ORIGINS",
+    "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173",
+)
+CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_allowed_origins_env.split(",") if origin.strip()]
+CORS_ALLOW_ALL_ORIGINS = os.environ.get("CORS_ALLOW_ALL_ORIGINS", "false").lower() == "true"
+CORS_ALLOW_CREDENTIALS = True

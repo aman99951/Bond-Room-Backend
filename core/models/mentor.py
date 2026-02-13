@@ -40,10 +40,12 @@ class Mentor(models.Model):
     timezone = models.CharField(max_length=50, blank=True)
     qualification = models.CharField(max_length=150, blank=True)
     bio = models.TextField(blank=True)
+    avatar = models.URLField(blank=True)
     average_rating = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
     response_time_minutes = models.IntegerField(null=True, blank=True)
     consent = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
 
     def __str__(self) -> str:
         return f"{self.first_name} {self.last_name}".strip()
