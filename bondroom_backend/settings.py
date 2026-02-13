@@ -44,7 +44,7 @@ if ENV_PATH.exists():
 SECRET_KEY = 'django-insecure--tc3zgkmg_v+9&3(dyvm#-(%ptpc&#-jtrr1lb+jnnp$f2gib@'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get("DEBUG", "true").strip().lower() == "true"
 
 allowed_hosts_env = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1,.vercel.app")
 ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_env.split(",") if host.strip()]
@@ -178,14 +178,69 @@ STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
-STORAGES = {
-    "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
-    },
-    "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
-    },
-}
+USE_S3_MEDIA = os.environ.get("USE_S3_MEDIA", "").strip().lower() in {"1", "true", "yes"} or bool(
+    os.environ.get("AWS_STORAGE_BUCKET_NAME", "").strip()
+)
+
+if USE_S3_MEDIA:
+    INSTALLED_APPS.append("storages")
+
+    AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID", "").strip()
+    AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY", "").strip()
+    AWS_STORAGE_BUCKET_NAME = os.environ.get("AWS_STORAGE_BUCKET_NAME", "").strip()
+    AWS_S3_REGION_NAME = os.environ.get("AWS_S3_REGION_NAME", "").strip()
+    AWS_S3_ENDPOINT_URL = os.environ.get("AWS_S3_ENDPOINT_URL", "").strip() or None
+    AWS_S3_CUSTOM_DOMAIN = os.environ.get("AWS_S3_CUSTOM_DOMAIN", "").strip()
+    AWS_MEDIA_LOCATION = os.environ.get("AWS_MEDIA_LOCATION", "media").strip("/") or "media"
+
+    if not AWS_STORAGE_BUCKET_NAME:
+        raise RuntimeError("AWS_STORAGE_BUCKET_NAME is required when USE_S3_MEDIA is enabled.")
+
+    AWS_DEFAULT_ACL = None
+    AWS_QUERYSTRING_AUTH = False
+    AWS_S3_FILE_OVERWRITE = False
+    AWS_S3_OBJECT_PARAMETERS = {
+        "CacheControl": "max-age=86400",
+    }
+
+    if AWS_S3_CUSTOM_DOMAIN:
+        MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/{AWS_MEDIA_LOCATION}/"
+    elif AWS_S3_ENDPOINT_URL:
+        MEDIA_URL = f"{AWS_S3_ENDPOINT_URL.rstrip('/')}/{AWS_STORAGE_BUCKET_NAME}/{AWS_MEDIA_LOCATION}/"
+    else:
+        region_suffix = f".{AWS_S3_REGION_NAME}" if AWS_S3_REGION_NAME else ""
+        MEDIA_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3{region_suffix}.amazonaws.com/{AWS_MEDIA_LOCATION}/"
+
+    STORAGES = {
+        "default": {
+            "BACKEND": "storages.backends.s3.S3Storage",
+            "OPTIONS": {
+                "access_key": AWS_ACCESS_KEY_ID or None,
+                "secret_key": AWS_SECRET_ACCESS_KEY or None,
+                "bucket_name": AWS_STORAGE_BUCKET_NAME,
+                "region_name": AWS_S3_REGION_NAME or None,
+                "endpoint_url": AWS_S3_ENDPOINT_URL,
+                "location": AWS_MEDIA_LOCATION,
+                "default_acl": AWS_DEFAULT_ACL,
+                "querystring_auth": AWS_QUERYSTRING_AUTH,
+                "file_overwrite": AWS_S3_FILE_OVERWRITE,
+                "object_parameters": AWS_S3_OBJECT_PARAMETERS,
+            },
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+        },
+    }
+else:
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+        },
+    }
+
 WHITENOISE_USE_FINDERS = True
 
 # Default primary key field type
