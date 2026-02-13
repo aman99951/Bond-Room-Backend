@@ -112,15 +112,24 @@ DATABASES = {
 }'''
 
 # Database configuration:
-# - Require DATABASE_URL from environment (Neon/Postgres).
+# - Require a Postgres URL from environment.
+# - Supports both explicit DATABASE_URL and Vercel Postgres variables.
 # - Use conn_max_age=0 by default for pooled/serverless Postgres to avoid stale connections.
-database_url = os.environ.get('DATABASE_URL', '').strip()
+database_url = (
+    os.environ.get('DATABASE_URL', '').strip()
+    or os.environ.get('POSTGRES_URL', '').strip()
+    or os.environ.get('POSTGRES_PRISMA_URL', '').strip()
+    or os.environ.get('POSTGRES_URL_NON_POOLING', '').strip()
+)
 db_conn_max_age = int(os.environ.get('DB_CONN_MAX_AGE', '0'))
 db_connect_timeout = int(os.environ.get('DB_CONNECT_TIMEOUT', '10'))
 db_sslmode = os.environ.get('DB_SSLMODE', 'require')
 
 if not database_url:
-    raise RuntimeError("DATABASE_URL is required. SQLite fallback has been removed.")
+    raise RuntimeError(
+        "Postgres URL is required. Set DATABASE_URL (or POSTGRES_URL on Vercel). "
+        "SQLite fallback has been removed."
+    )
 
 if 'channel_binding=require' in database_url:
     database_url = database_url.replace('channel_binding=require', 'channel_binding=prefer')
