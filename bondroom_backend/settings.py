@@ -27,14 +27,29 @@ try:
 except Exception:
     pass
 
-ENV_PATH = BASE_DIR / ".env"
-if ENV_PATH.exists():
-    for line in ENV_PATH.read_text(encoding="utf-8").splitlines():
+existing_env_keys = set(os.environ.keys())
+
+
+def _load_env_file(path: Path, *, override_previous_files: bool = False) -> None:
+    if not path.exists():
+        return
+
+    for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, value = line.split("=", 1)
-        os.environ.setdefault(key.strip(), value.strip())
+        key = key.strip()
+        value = value.strip()
+        if key in existing_env_keys:
+            continue
+        if not override_previous_files and key in os.environ:
+            continue
+        os.environ[key] = value
+
+
+_load_env_file(BASE_DIR / ".env", override_previous_files=False)
+_load_env_file(BASE_DIR / ".env.local", override_previous_files=True)
 
 
 def _normalize_database_url(raw_value: str) -> str:
