@@ -97,6 +97,58 @@ class MentorOnboardingStatus(models.Model):
     def __str__(self) -> str:
         return f"Onboarding status for mentor {self.mentor_id}"
 
+    @classmethod
+    def derive_current_status(
+        cls,
+        *,
+        application_status: str,
+        identity_status: str,
+        contact_status: str,
+        training_status: str,
+        final_approval_status: str,
+    ) -> str:
+        stages = [
+            application_status,
+            identity_status,
+            contact_status,
+            training_status,
+            final_approval_status,
+        ]
+
+        if any(item == "rejected" for item in stages):
+            return "rejected"
+
+        # Product rule: once these three stages are complete, onboarding is complete.
+        if (
+            identity_status == "completed"
+            and training_status == "completed"
+            and final_approval_status == "completed"
+        ):
+            return "completed"
+
+        if all(item == "pending" for item in stages):
+            return "pending"
+        if all(item == "completed" for item in stages):
+            return "completed"
+        return "in_review"
+
+    def sync_current_status(self) -> str:
+        self.current_status = self.derive_current_status(
+            application_status=self.application_status,
+            identity_status=self.identity_status,
+            contact_status=self.contact_status,
+            training_status=self.training_status,
+            final_approval_status=self.final_approval_status,
+        )
+        return self.current_status
+
+    def save(self, *args, **kwargs):
+        self.sync_current_status()
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None and "current_status" not in update_fields:
+            kwargs["update_fields"] = [*update_fields, "current_status"]
+        return super().save(*args, **kwargs)
+
 
 class TrainingModule(models.Model):
     title = models.CharField(max_length=200)

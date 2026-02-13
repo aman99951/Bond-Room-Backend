@@ -540,15 +540,6 @@ class MentorViewSet(viewsets.ModelViewSet):
                 return "in_review"
             return "pending"
 
-        def compute_current_status(stages):
-            if any(item == "rejected" for item in stages):
-                return "rejected"
-            if all(item == "completed" for item in stages):
-                return "completed"
-            if all(item == "pending" for item in stages):
-                return "pending"
-            return "in_review"
-
         with transaction.atomic():
             identity_decision = decision.get("identity_decision")
             reviewer_notes = decision.get("reviewer_notes", "").strip()
@@ -576,14 +567,12 @@ class MentorViewSet(viewsets.ModelViewSet):
             if next_final_status != "rejected":
                 next_final_rejection_reason = ""
 
-            next_current_status = compute_current_status(
-                [
-                    onboarding.application_status,
-                    next_identity_status,
-                    onboarding.contact_status,
-                    next_training_status,
-                    next_final_status,
-                ]
+            next_current_status = MentorOnboardingStatus.derive_current_status(
+                application_status=onboarding.application_status,
+                identity_status=next_identity_status,
+                contact_status=onboarding.contact_status,
+                training_status=next_training_status,
+                final_approval_status=next_final_status,
             )
 
             onboarding.identity_status = next_identity_status
