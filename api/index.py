@@ -11,8 +11,10 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BACKEND_DIR = REPO_ROOT / "backend"
 
-if str(BACKEND_DIR) not in sys.path:
-    sys.path.insert(0, str(BACKEND_DIR))
+for candidate in (REPO_ROOT, BACKEND_DIR):
+    candidate_str = str(candidate)
+    if candidate.exists() and candidate_str not in sys.path:
+        sys.path.insert(0, candidate_str)
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "bondroom_backend.settings")
 

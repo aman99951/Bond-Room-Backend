@@ -37,6 +37,20 @@ if ENV_PATH.exists():
         os.environ.setdefault(key.strip(), value.strip())
 
 
+def _normalize_database_url(raw_value: str) -> str:
+    value = (raw_value or "").strip()
+    if not value:
+        return ""
+
+    if value.lower().startswith("psql "):
+        value = value[5:].strip()
+
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+        value = value[1:-1].strip()
+
+    return value
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
@@ -116,10 +130,10 @@ DATABASES = {
 # - Supports both explicit DATABASE_URL and Vercel Postgres variables.
 # - Use conn_max_age=0 by default for pooled/serverless Postgres to avoid stale connections.
 database_url = (
-    os.environ.get('DATABASE_URL', '').strip()
-    or os.environ.get('POSTGRES_URL', '').strip()
-    or os.environ.get('POSTGRES_PRISMA_URL', '').strip()
-    or os.environ.get('POSTGRES_URL_NON_POOLING', '').strip()
+    _normalize_database_url(os.environ.get('DATABASE_URL', ''))
+    or _normalize_database_url(os.environ.get('POSTGRES_URL', ''))
+    or _normalize_database_url(os.environ.get('POSTGRES_PRISMA_URL', ''))
+    or _normalize_database_url(os.environ.get('POSTGRES_URL_NON_POOLING', ''))
 )
 db_conn_max_age = int(os.environ.get('DB_CONN_MAX_AGE', '0'))
 db_connect_timeout = int(os.environ.get('DB_CONNECT_TIMEOUT', '10'))
@@ -134,13 +148,19 @@ if not database_url:
 if 'channel_binding=require' in database_url:
     database_url = database_url.replace('channel_binding=require', 'channel_binding=prefer')
 
-DATABASES = {
-    'default': dj_database_url.parse(
+try:
+    parsed_database = dj_database_url.parse(
         database_url,
         conn_max_age=db_conn_max_age,
         conn_health_checks=True,
     )
-}
+except Exception as exc:
+    raise RuntimeError(
+        "Invalid Postgres URL in DATABASE_URL/POSTGRES_URL. "
+        "If copied from psql, use only the raw postgresql:// URL."
+    ) from exc
+
+DATABASES = {'default': parsed_database}
 DATABASES['default'].setdefault('OPTIONS', {})
 DATABASES['default']['OPTIONS'].setdefault('sslmode', db_sslmode)
 DATABASES['default']['OPTIONS'].setdefault('connect_timeout', db_connect_timeout)
@@ -273,8 +293,12 @@ OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
 
 cors_allowed_origins_env = os.environ.get(
     "CORS_ALLOWED_ORIGINS",
-    "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173",
+    "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173,https://bond-room.vercel.app",
 )
-CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_allowed_origins_env.split(",") if origin.strip()]
+CORS_ALLOWED_ORIGINS = []
+for origin in cors_allowed_origins_env.split(","):
+    normalized = origin.strip().rstrip("/")
+    if normalized:
+        CORS_ALLOWED_ORIGINS.append(normalized)
 CORS_ALLOW_ALL_ORIGINS = os.environ.get("CORS_ALLOW_ALL_ORIGINS", "false").lower() == "true"
 CORS_ALLOW_CREDENTIALS = True
