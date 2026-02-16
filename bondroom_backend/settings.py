@@ -144,45 +144,56 @@ DATABASES = {
 # - Require a Postgres URL from environment.
 # - Supports both explicit DATABASE_URL and Vercel Postgres variables.
 # - Use conn_max_age=0 by default for pooled/serverless Postgres to avoid stale connections.
-database_url = (
-    _normalize_database_url(os.environ.get('DATABASE_URL', ''))
-    or _normalize_database_url(os.environ.get('POSTGRES_URL', ''))
-    or _normalize_database_url(os.environ.get('POSTGRES_PRISMA_URL', ''))
-    or _normalize_database_url(os.environ.get('POSTGRES_URL_NON_POOLING', ''))
-)
-db_conn_max_age = int(os.environ.get('DB_CONN_MAX_AGE', '0'))
-db_connect_timeout = int(os.environ.get('DB_CONNECT_TIMEOUT', '10'))
-db_sslmode = os.environ.get('DB_SSLMODE', 'require')
+USE_SQLITE_FOR_TESTS = os.environ.get("USE_SQLITE_FOR_TESTS", "").strip().lower() in {"1", "true", "yes"}
 
-if not database_url:
-    raise RuntimeError(
-        "Postgres URL is required. Set DATABASE_URL (or POSTGRES_URL on Vercel). "
-        "SQLite fallback has been removed."
+if USE_SQLITE_FOR_TESTS:
+    sqlite_test_db = os.environ.get("SQLITE_TEST_DB", "").strip()
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": sqlite_test_db or (BASE_DIR / "test_db.sqlite3"),
+        }
+    }
+else:
+    database_url = (
+        _normalize_database_url(os.environ.get('DATABASE_URL', ''))
+        or _normalize_database_url(os.environ.get('POSTGRES_URL', ''))
+        or _normalize_database_url(os.environ.get('POSTGRES_PRISMA_URL', ''))
+        or _normalize_database_url(os.environ.get('POSTGRES_URL_NON_POOLING', ''))
     )
+    db_conn_max_age = int(os.environ.get('DB_CONN_MAX_AGE', '0'))
+    db_connect_timeout = int(os.environ.get('DB_CONNECT_TIMEOUT', '10'))
+    db_sslmode = os.environ.get('DB_SSLMODE', 'require')
 
-if 'channel_binding=require' in database_url:
-    database_url = database_url.replace('channel_binding=require', 'channel_binding=prefer')
+    if not database_url:
+        raise RuntimeError(
+            "Postgres URL is required. Set DATABASE_URL (or POSTGRES_URL on Vercel). "
+            "SQLite fallback has been removed."
+        )
 
-try:
-    parsed_database = dj_database_url.parse(
-        database_url,
-        conn_max_age=db_conn_max_age,
-        conn_health_checks=True,
-    )
-except Exception as exc:
-    raise RuntimeError(
-        "Invalid Postgres URL in DATABASE_URL/POSTGRES_URL. "
-        "If copied from psql, use only the raw postgresql:// URL."
-    ) from exc
+    if 'channel_binding=require' in database_url:
+        database_url = database_url.replace('channel_binding=require', 'channel_binding=prefer')
 
-DATABASES = {'default': parsed_database}
-DATABASES['default'].setdefault('OPTIONS', {})
-DATABASES['default']['OPTIONS'].setdefault('sslmode', db_sslmode)
-DATABASES['default']['OPTIONS'].setdefault('connect_timeout', db_connect_timeout)
-DATABASES['default']['OPTIONS'].setdefault('keepalives', 1)
-DATABASES['default']['OPTIONS'].setdefault('keepalives_idle', 30)
-DATABASES['default']['OPTIONS'].setdefault('keepalives_interval', 10)
-DATABASES['default']['OPTIONS'].setdefault('keepalives_count', 5)
+    try:
+        parsed_database = dj_database_url.parse(
+            database_url,
+            conn_max_age=db_conn_max_age,
+            conn_health_checks=True,
+        )
+    except Exception as exc:
+        raise RuntimeError(
+            "Invalid Postgres URL in DATABASE_URL/POSTGRES_URL. "
+            "If copied from psql, use only the raw postgresql:// URL."
+        ) from exc
+
+    DATABASES = {'default': parsed_database}
+    DATABASES['default'].setdefault('OPTIONS', {})
+    DATABASES['default']['OPTIONS'].setdefault('sslmode', db_sslmode)
+    DATABASES['default']['OPTIONS'].setdefault('connect_timeout', db_connect_timeout)
+    DATABASES['default']['OPTIONS'].setdefault('keepalives', 1)
+    DATABASES['default']['OPTIONS'].setdefault('keepalives_idle', 30)
+    DATABASES['default']['OPTIONS'].setdefault('keepalives_interval', 10)
+    DATABASES['default']['OPTIONS'].setdefault('keepalives_count', 5)
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -296,6 +307,7 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
+    'DEFAULT_SCHEMA_CLASS': 'core.schema.BondRoomAutoSchema',
 }
 
 SIMPLE_JWT = {

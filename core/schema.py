@@ -1,13 +1,21 @@
 from rest_framework.permissions import AllowAny
 from rest_framework.renderers import JSONOpenAPIRenderer
 from rest_framework.response import Response
+from rest_framework.schemas.openapi import AutoSchema
 from rest_framework.schemas.openapi import SchemaGenerator
 from rest_framework.views import APIView
+
+
+class BondRoomAutoSchema(AutoSchema):
+    def get_operation_id(self, path, method):
+        base = super().get_operation_id(path, method)
+        return f"{base}{method.capitalize()}"
 
 
 PUBLIC_PATHS = {
     "/api/login/",
     "/api/token/refresh/",
+    "/api/auth/register/admin/",
     "/api/auth/register/mentee/",
     "/api/auth/register/mentor/",
     "/api/auth/parent-consent/send-otp/",

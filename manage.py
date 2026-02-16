@@ -4,9 +4,17 @@ import os
 import sys
 
 
+def _is_test_command(argv):
+    return len(argv) > 1 and argv[1] == "test"
+
+
 def main():
     """Run administrative tasks."""
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'bondroom_backend.settings')
+    if _is_test_command(sys.argv):
+        os.environ.setdefault("DJANGO_SETTINGS_MODULE", "bondroom_backend.settings_test")
+        os.environ.setdefault("USE_SQLITE_FOR_TESTS", "1")
+    else:
+        os.environ.setdefault("DJANGO_SETTINGS_MODULE", "bondroom_backend.settings")
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:
