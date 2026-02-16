@@ -1,0 +1,7058 @@
+{
+  "components": {
+    "schemas": {
+      "AdminRegister": {
+        "properties": {
+          "email": {
+            "format": "email",
+            "type": "string"
+          },
+          "first_name": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "last_name": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "mobile": {
+            "maxLength": 20,
+            "type": "string"
+          },
+          "password": {
+            "minLength": 6,
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "first_name",
+          "last_name",
+          "email",
+          "mobile",
+          "password"
+        ],
+        "type": "object"
+      },
+      "BondRoomTokenObtainPair": {
+        "properties": {
+          "email": {
+            "format": "email",
+            "type": "string",
+            "writeOnly": true
+          },
+          "password": {
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "password",
+          "email"
+        ],
+        "type": "object"
+      },
+      "DonationTransaction": {
+        "properties": {
+          "amount": {
+            "format": "decimal",
+            "maximum": 100000000,
+            "minimum": -100000000,
+            "multipleOf": 0.01,
+            "type": "string"
+          },
+          "cause": {
+            "maxLength": 150,
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "id": {
+            "readOnly": true,
+            "type": "integer"
+          },
+          "mentor": {
+            "type": "integer"
+          },
+          "note": {
+            "type": "string"
+          },
+          "session": {
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "completed",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "amount",
+          "mentor",
+          "session"
+        ],
+        "type": "object"
+      },
+      "MatchRecommendation": {
+        "properties": {
+          "availability_overlap": {
+            "type": "object"
+          },
+          "created_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "explanation": {
+            "type": "string"
+          },
+          "id": {
+            "readOnly": true,
+            "type": "integer"
+          },
+          "matched_topics": {
+            "type": "object"
+          },
+          "mentee_request": {
+            "type": "integer"
+          },
+          "mentor": {
+            "properties": {
+              "availability": {
+                "type": "object"
+              },
+              "avatar": {
+                "format": "uri",
+                "maxLength": 200,
+                "pattern": "^(?:[a-z0-9.+-]*)://(?:[^\\s:@/]+(?::[^\\s:@/]*)?@)?(?:(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)(?:\\.(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}|\\[[0-9a-f:.]+\\]|([a-z¡-￿0-9](?:[a-z¡-￿0-9-]{0,61}[a-z¡-￿0-9])?(?:\\.(?!-)[a-z¡-￿0-9-]{1,63}(?<!-))*\\.(?!-)(?:[a-z¡-￿-]{2,63}|xn--[a-z0-9]{1,59})(?<!-)\\.?|localhost))(?::[0-9]{1,5})?(?:[/?#][^\\s]*)?\\z",
+                "type": "string"
+              },
+              "average_rating": {
+                "format": "decimal",
+                "maximum": 100,
+                "minimum": -100,
+                "multipleOf": 0.01,
+                "nullable": true,
+                "type": "string"
+              },
+              "bio": {
+                "type": "string"
+              },
+              "care_areas": {
+                "type": "object"
+              },
+              "city_state": {
+                "maxLength": 150,
+                "type": "string"
+              },
+              "consent": {
+                "type": "boolean"
+              },
+              "created_at": {
+                "format": "date-time",
+                "readOnly": true,
+                "type": "string"
+              },
+              "dob": {
+                "format": "date",
+                "type": "string"
+              },
+              "email": {
+                "format": "email",
+                "maxLength": 254,
+                "type": "string"
+              },
+              "first_name": {
+                "maxLength": 100,
+                "type": "string"
+              },
+              "gender": {
+                "enum": [
+                  "Female",
+                  "Male",
+                  "Non-binary",
+                  "Prefer not to say"
+                ],
+                "type": "string"
+              },
+              "id": {
+                "readOnly": true,
+                "type": "integer"
+              },
+              "languages": {
+                "type": "object"
+              },
+              "last_name": {
+                "maxLength": 100,
+                "type": "string"
+              },
+              "mobile": {
+                "maxLength": 20,
+                "type": "string"
+              },
+              "preferred_formats": {
+                "type": "object"
+              },
+              "qualification": {
+                "maxLength": 150,
+                "type": "string"
+              },
+              "response_time_minutes": {
+                "format": "int64",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "nullable": true,
+                "type": "integer"
+              },
+              "timezone": {
+                "maxLength": 50,
+                "type": "string"
+              },
+              "updated_at": {
+                "format": "date-time",
+                "nullable": true,
+                "readOnly": true,
+                "type": "string"
+              }
+            },
+            "readOnly": true,
+            "required": [
+              "first_name",
+              "last_name",
+              "email",
+              "mobile",
+              "dob",
+              "gender",
+              "city_state"
+            ],
+            "type": "object"
+          },
+          "model": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "prompt_hash": {
+            "maxLength": 64,
+            "type": "string"
+          },
+          "rating_score": {
+            "format": "decimal",
+            "maximum": 1000,
+            "minimum": -1000,
+            "multipleOf": 0.01,
+            "nullable": true,
+            "type": "string"
+          },
+          "response_id": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "response_time_score": {
+            "format": "decimal",
+            "maximum": 1000,
+            "minimum": -1000,
+            "multipleOf": 0.01,
+            "nullable": true,
+            "type": "string"
+          },
+          "score": {
+            "format": "decimal",
+            "maximum": 1000,
+            "minimum": -1000,
+            "multipleOf": 0.01,
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "seed",
+              "rules",
+              "openai",
+              "manual"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "suggested",
+              "accepted",
+              "rejected",
+              "expired"
+            ],
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "score",
+          "mentee_request"
+        ],
+        "type": "object"
+      },
+      "Mentee": {
+        "properties": {
+          "avatar": {
+            "format": "binary",
+            "nullable": true,
+            "type": "string"
+          },
+          "city_state": {
+            "maxLength": 150,
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "dob": {
+            "format": "date",
+            "type": "string"
+          },
+          "email": {
+            "format": "email",
+            "maxLength": 254,
+            "type": "string"
+          },
+          "first_name": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "gender": {
+            "enum": [
+              "Female",
+              "Male",
+              "Non-binary",
+              "Prefer not to say"
+            ],
+            "type": "string"
+          },
+          "grade": {
+            "enum": [
+              "9th Grade",
+              "10th Grade",
+              "11th Grade",
+              "12th Grade"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "readOnly": true,
+            "type": "integer"
+          },
+          "last_name": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "parent_guardian_consent": {
+            "type": "boolean"
+          },
+          "parent_mobile": {
+            "maxLength": 20,
+            "type": "string"
+          },
+          "record_consent": {
+            "type": "boolean"
+          },
+          "timezone": {
+            "maxLength": 50,
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "first_name",
+          "last_name",
+          "grade",
+          "email",
+          "dob",
+          "gender"
+        ],
+        "type": "object"
+      },
+      "MenteePreferences": {
+        "properties": {
+          "comfort_level": {
+            "maxLength": 30,
+            "type": "string"
+          },
+          "id": {
+            "readOnly": true,
+            "type": "integer"
+          },
+          "mentee": {
+            "type": "integer"
+          },
+          "preferred_mentor_types": {
+            "type": "object"
+          },
+          "preferred_session_minutes": {
+            "format": "int64",
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "nullable": true,
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "mentee"
+        ],
+        "type": "object"
+      },
+      "MenteeRegister": {
+        "properties": {
+          "city_state": {
+            "maxLength": 150,
+            "type": "string"
+          },
+          "dob": {
+            "format": "date",
+            "type": "string"
+          },
+          "email": {
+            "format": "email",
+            "type": "string"
+          },
+          "first_name": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "gender": {
+            "enum": [
+              "Female",
+              "Male",
+              "Non-binary",
+              "Prefer not to say"
+            ],
+            "type": "string"
+          },
+          "grade": {
+            "enum": [
+              "9th Grade",
+              "10th Grade",
+              "11th Grade",
+              "12th Grade"
+            ],
+            "type": "string"
+          },
+          "last_name": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "parent_guardian_consent": {
+            "default": false,
+            "type": "boolean"
+          },
+          "parent_mobile": {
+            "maxLength": 20,
+            "type": "string"
+          },
+          "password": {
+            "type": "string",
+            "writeOnly": true
+          },
+          "record_consent": {
+            "default": false,
+            "type": "boolean"
+          },
+          "timezone": {
+            "maxLength": 50,
+            "type": "string"
+          }
+        },
+        "required": [
+          "first_name",
+          "last_name",
+          "grade",
+          "email",
+          "dob",
+          "gender"
+        ],
+        "type": "object"
+      },
+      "MenteeRequest": {
+        "properties": {
+          "access_needs": {
+            "type": "string"
+          },
+          "allow_auto_match": {
+            "type": "boolean"
+          },
+          "comfort_level": {
+            "enum": [
+              "Very Uncomfortable",
+              "Somewhat Uncomfortable",
+              "Neutral",
+              "Comfortable",
+              "Very Comfortable"
+            ],
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "feeling": {
+            "enum": [
+              "Burnt Out",
+              "Anxious",
+              "Confused",
+              "Lonely",
+              "Hopeful",
+              "Other"
+            ],
+            "type": "string"
+          },
+          "feeling_cause": {
+            "enum": [
+              "Exam Pressure",
+              "Parent Expectations",
+              "Friend Issues",
+              "Future Anxiety (Career/College)",
+              "Concentration Struggles",
+              "Study Struggles",
+              "Others"
+            ],
+            "type": "string"
+          },
+          "free_text": {
+            "type": "string"
+          },
+          "id": {
+            "readOnly": true,
+            "type": "integer"
+          },
+          "language": {
+            "maxLength": 50,
+            "type": "string"
+          },
+          "mentee": {
+            "type": "integer"
+          },
+          "preferred_format": {
+            "enum": [
+              "1:1",
+              "Group",
+              "Drop-in",
+              "Workshop"
+            ],
+            "type": "string"
+          },
+          "preferred_times": {
+            "type": "object"
+          },
+          "recommendations": {
+            "items": {
+              "properties": {
+                "availability_overlap": {
+                  "type": "object"
+                },
+                "created_at": {
+                  "format": "date-time",
+                  "readOnly": true,
+                  "type": "string"
+                },
+                "explanation": {
+                  "type": "string"
+                },
+                "id": {
+                  "readOnly": true,
+                  "type": "integer"
+                },
+                "matched_topics": {
+                  "type": "object"
+                },
+                "mentee_request": {
+                  "type": "integer"
+                },
+                "mentor": {
+                  "properties": {
+                    "availability": {
+                      "type": "object"
+                    },
+                    "avatar": {
+                      "format": "uri",
+                      "maxLength": 200,
+                      "pattern": "^(?:[a-z0-9.+-]*)://(?:[^\\s:@/]+(?::[^\\s:@/]*)?@)?(?:(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)(?:\\.(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}|\\[[0-9a-f:.]+\\]|([a-z¡-￿0-9](?:[a-z¡-￿0-9-]{0,61}[a-z¡-￿0-9])?(?:\\.(?!-)[a-z¡-￿0-9-]{1,63}(?<!-))*\\.(?!-)(?:[a-z¡-￿-]{2,63}|xn--[a-z0-9]{1,59})(?<!-)\\.?|localhost))(?::[0-9]{1,5})?(?:[/?#][^\\s]*)?\\z",
+                      "type": "string"
+                    },
+                    "average_rating": {
+                      "format": "decimal",
+                      "maximum": 100,
+                      "minimum": -100,
+                      "multipleOf": 0.01,
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "bio": {
+                      "type": "string"
+                    },
+                    "care_areas": {
+                      "type": "object"
+                    },
+                    "city_state": {
+                      "maxLength": 150,
+                      "type": "string"
+                    },
+                    "consent": {
+                      "type": "boolean"
+                    },
+                    "created_at": {
+                      "format": "date-time",
+                      "readOnly": true,
+                      "type": "string"
+                    },
+                    "dob": {
+                      "format": "date",
+                      "type": "string"
+                    },
+                    "email": {
+                      "format": "email",
+                      "maxLength": 254,
+                      "type": "string"
+                    },
+                    "first_name": {
+                      "maxLength": 100,
+                      "type": "string"
+                    },
+                    "gender": {
+                      "enum": [
+                        "Female",
+                        "Male",
+                        "Non-binary",
+                        "Prefer not to say"
+                      ],
+                      "type": "string"
+                    },
+                    "id": {
+                      "readOnly": true,
+                      "type": "integer"
+                    },
+                    "languages": {
+                      "type": "object"
+                    },
+                    "last_name": {
+                      "maxLength": 100,
+                      "type": "string"
+                    },
+                    "mobile": {
+                      "maxLength": 20,
+                      "type": "string"
+                    },
+                    "preferred_formats": {
+                      "type": "object"
+                    },
+                    "qualification": {
+                      "maxLength": 150,
+                      "type": "string"
+                    },
+                    "response_time_minutes": {
+                      "format": "int64",
+                      "maximum": 9223372036854775807,
+                      "minimum": -9223372036854775808,
+                      "nullable": true,
+                      "type": "integer"
+                    },
+                    "timezone": {
+                      "maxLength": 50,
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "format": "date-time",
+                      "nullable": true,
+                      "readOnly": true,
+                      "type": "string"
+                    }
+                  },
+                  "readOnly": true,
+                  "required": [
+                    "first_name",
+                    "last_name",
+                    "email",
+                    "mobile",
+                    "dob",
+                    "gender",
+                    "city_state"
+                  ],
+                  "type": "object"
+                },
+                "model": {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                "prompt_hash": {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                "rating_score": {
+                  "format": "decimal",
+                  "maximum": 1000,
+                  "minimum": -1000,
+                  "multipleOf": 0.01,
+                  "nullable": true,
+                  "type": "string"
+                },
+                "response_id": {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                "response_time_score": {
+                  "format": "decimal",
+                  "maximum": 1000,
+                  "minimum": -1000,
+                  "multipleOf": 0.01,
+                  "nullable": true,
+                  "type": "string"
+                },
+                "score": {
+                  "format": "decimal",
+                  "maximum": 1000,
+                  "minimum": -1000,
+                  "multipleOf": 0.01,
+                  "type": "string"
+                },
+                "source": {
+                  "enum": [
+                    "seed",
+                    "rules",
+                    "openai",
+                    "manual"
+                  ],
+                  "type": "string"
+                },
+                "status": {
+                  "enum": [
+                    "suggested",
+                    "accepted",
+                    "rejected",
+                    "expired"
+                  ],
+                  "type": "string"
+                },
+                "updated_at": {
+                  "format": "date-time",
+                  "nullable": true,
+                  "readOnly": true,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "score",
+                "mentee_request"
+              ],
+              "type": "object"
+            },
+            "readOnly": true,
+            "type": "array"
+          },
+          "safety_flag": {
+            "type": "boolean"
+          },
+          "safety_notes": {
+            "type": "string"
+          },
+          "session_mode": {
+            "enum": [
+              "online",
+              "in_person"
+            ],
+            "type": "string"
+          },
+          "support_type": {
+            "enum": [
+              "Someone to Listen",
+              "Study Guidance / Tips",
+              "Motivation",
+              "Stress Relief Strategies",
+              "Life Advice / Perspective",
+              "I'm Not Sure"
+            ],
+            "type": "string"
+          },
+          "timezone": {
+            "maxLength": 50,
+            "type": "string"
+          },
+          "topics": {
+            "type": "object"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Mentor": {
+        "properties": {
+          "availability": {
+            "type": "object"
+          },
+          "avatar": {
+            "format": "uri",
+            "maxLength": 200,
+            "pattern": "^(?:[a-z0-9.+-]*)://(?:[^\\s:@/]+(?::[^\\s:@/]*)?@)?(?:(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)(?:\\.(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}|\\[[0-9a-f:.]+\\]|([a-z¡-￿0-9](?:[a-z¡-￿0-9-]{0,61}[a-z¡-￿0-9])?(?:\\.(?!-)[a-z¡-￿0-9-]{1,63}(?<!-))*\\.(?!-)(?:[a-z¡-￿-]{2,63}|xn--[a-z0-9]{1,59})(?<!-)\\.?|localhost))(?::[0-9]{1,5})?(?:[/?#][^\\s]*)?\\z",
+            "type": "string"
+          },
+          "average_rating": {
+            "format": "decimal",
+            "maximum": 100,
+            "minimum": -100,
+            "multipleOf": 0.01,
+            "nullable": true,
+            "type": "string"
+          },
+          "bio": {
+            "type": "string"
+          },
+          "care_areas": {
+            "type": "object"
+          },
+          "city_state": {
+            "maxLength": 150,
+            "type": "string"
+          },
+          "consent": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "dob": {
+            "format": "date",
+            "type": "string"
+          },
+          "email": {
+            "format": "email",
+            "maxLength": 254,
+            "type": "string"
+          },
+          "first_name": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "gender": {
+            "enum": [
+              "Female",
+              "Male",
+              "Non-binary",
+              "Prefer not to say"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "readOnly": true,
+            "type": "integer"
+          },
+          "languages": {
+            "type": "object"
+          },
+          "last_name": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "mobile": {
+            "maxLength": 20,
+            "type": "string"
+          },
+          "preferred_formats": {
+            "type": "object"
+          },
+          "qualification": {
+            "maxLength": 150,
+            "type": "string"
+          },
+          "response_time_minutes": {
+            "format": "int64",
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "nullable": true,
+            "type": "integer"
+          },
+          "timezone": {
+            "maxLength": 50,
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "first_name",
+          "last_name",
+          "email",
+          "mobile",
+          "dob",
+          "gender",
+          "city_state"
+        ],
+        "type": "object"
+      },
+      "MentorAvailabilitySlot": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "end_time": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "readOnly": true,
+            "type": "integer"
+          },
+          "is_available": {
+            "type": "boolean"
+          },
+          "mentor": {
+            "type": "integer"
+          },
+          "start_time": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "timezone": {
+            "maxLength": 50,
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "start_time",
+          "end_time",
+          "mentor"
+        ],
+        "type": "object"
+      },
+      "MentorContactOtpSend": {
+        "properties": {
+          "channel": {
+            "enum": [
+              "email",
+              "phone"
+            ],
+            "type": "string"
+          },
+          "mentor_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "mentor_id",
+          "channel"
+        ],
+        "type": "object"
+      },
+      "MentorContactOtpVerify": {
+        "properties": {
+          "channel": {
+            "enum": [
+              "email",
+              "phone"
+            ],
+            "type": "string"
+          },
+          "mentor_id": {
+            "type": "integer"
+          },
+          "otp": {
+            "maxLength": 6,
+            "type": "string"
+          }
+        },
+        "required": [
+          "mentor_id",
+          "channel",
+          "otp"
+        ],
+        "type": "object"
+      },
+      "MentorContactVerification": {
+        "properties": {
+          "email_otp_attempts": {
+            "format": "int64",
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "email_otp_expires_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "email_otp_hash": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "email_otp_sent_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "email_verified": {
+            "type": "boolean"
+          },
+          "email_verified_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "readOnly": true,
+            "type": "integer"
+          },
+          "mentor": {
+            "type": "integer"
+          },
+          "phone_otp_attempts": {
+            "format": "int64",
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "phone_otp_expires_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "phone_otp_hash": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "phone_otp_sent_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "phone_verified": {
+            "type": "boolean"
+          },
+          "phone_verified_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "mentor"
+        ],
+        "type": "object"
+      },
+      "MentorIdentityVerification": {
+        "properties": {
+          "aadhaar_back": {
+            "format": "binary",
+            "nullable": true,
+            "type": "string"
+          },
+          "aadhaar_front": {
+            "format": "binary",
+            "nullable": true,
+            "type": "string"
+          },
+          "additional_notes": {
+            "type": "string"
+          },
+          "id": {
+            "readOnly": true,
+            "type": "integer"
+          },
+          "mentor": {
+            "type": "integer"
+          },
+          "passport_or_license": {
+            "format": "binary",
+            "nullable": true,
+            "type": "string"
+          },
+          "reviewed_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "reviewer_notes": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "in_review",
+              "verified",
+              "rejected"
+            ],
+            "type": "string"
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "mentor"
+        ],
+        "type": "object"
+      },
+      "MentorOnboardingStatus": {
+        "properties": {
+          "application_status": {
+            "enum": [
+              "pending",
+              "in_review",
+              "completed",
+              "rejected"
+            ],
+            "type": "string"
+          },
+          "contact_status": {
+            "enum": [
+              "pending",
+              "in_review",
+              "completed",
+              "rejected"
+            ],
+            "type": "string"
+          },
+          "current_status": {
+            "enum": [
+              "pending",
+              "in_review",
+              "completed",
+              "rejected"
+            ],
+            "type": "string"
+          },
+          "final_approval_status": {
+            "enum": [
+              "pending",
+              "in_review",
+              "completed",
+              "rejected"
+            ],
+            "type": "string"
+          },
+          "final_rejection_reason": {
+            "type": "string"
+          },
+          "id": {
+            "readOnly": true,
+            "type": "integer"
+          },
+          "identity_status": {
+            "enum": [
+              "pending",
+              "in_review",
+              "completed",
+              "rejected"
+            ],
+            "type": "string"
+          },
+          "mentor": {
+            "type": "integer"
+          },
+          "training_status": {
+            "enum": [
+              "pending",
+              "in_review",
+              "completed",
+              "rejected"
+            ],
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "mentor"
+        ],
+        "type": "object"
+      },
+      "MentorProfile": {
+        "properties": {
+          "id": {
+            "readOnly": true,
+            "type": "integer"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "mentor": {
+            "type": "integer"
+          },
+          "profile_photo": {
+            "format": "binary",
+            "nullable": true,
+            "type": "string"
+          },
+          "public_id": {
+            "maxLength": 40,
+            "type": "string"
+          },
+          "sessions_completed": {
+            "format": "int64",
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "specialization": {
+            "maxLength": 150,
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true,
+            "type": "string"
+          },
+          "years_experience": {
+            "format": "int64",
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "nullable": true,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "public_id",
+          "mentor"
+        ],
+        "type": "object"
+      },
+      "MentorRegister": {
+        "properties": {
+          "availability": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "avatar": {
+            "format": "uri",
+            "pattern": "^(?:[a-z0-9.+-]*)://(?:[^\\s:@/]+(?::[^\\s:@/]*)?@)?(?:(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)(?:\\.(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}|\\[[0-9a-f:.]+\\]|([a-z¡-￿0-9](?:[a-z¡-￿0-9-]{0,61}[a-z¡-￿0-9])?(?:\\.(?!-)[a-z¡-￿0-9-]{1,63}(?<!-))*\\.(?!-)(?:[a-z¡-￿-]{2,63}|xn--[a-z0-9]{1,59})(?<!-)\\.?|localhost))(?::[0-9]{1,5})?(?:[/?#][^\\s]*)?\\z",
+            "type": "string"
+          },
+          "bio": {
+            "type": "string"
+          },
+          "care_areas": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "city_state": {
+            "maxLength": 150,
+            "type": "string"
+          },
+          "consent": {
+            "default": false,
+            "type": "boolean"
+          },
+          "dob": {
+            "format": "date",
+            "type": "string"
+          },
+          "email": {
+            "format": "email",
+            "type": "string"
+          },
+          "first_name": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "gender": {
+            "enum": [
+              "Female",
+              "Male",
+              "Non-binary",
+              "Prefer not to say"
+            ],
+            "type": "string"
+          },
+          "languages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "last_name": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "mobile": {
+            "maxLength": 20,
+            "type": "string"
+          },
+          "password": {
+            "type": "string",
+            "writeOnly": true
+          },
+          "preferred_formats": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "qualification": {
+            "maxLength": 150,
+            "type": "string"
+          },
+          "timezone": {
+            "maxLength": 50,
+            "type": "string"
+          }
+        },
+        "required": [
+          "first_name",
+          "last_name",
+          "email",
+          "mobile",
+          "dob",
+          "gender",
+          "city_state"
+        ],
+        "type": "object"
+      },
+      "MentorTrainingProgress": {
+        "properties": {
+          "completed_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "readOnly": true,
+            "type": "integer"
+          },
+          "last_activity_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "mentor": {
+            "type": "integer"
+          },
+          "module": {
+            "type": "integer"
+          },
+          "progress_percent": {
+            "format": "int64",
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "locked",
+              "in_progress",
+              "completed"
+            ],
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "mentor",
+          "module"
+        ],
+        "type": "object"
+      },
+      "MentorWallet": {
+        "properties": {
+          "current_balance": {
+            "format": "decimal",
+            "maximum": 100000000,
+            "minimum": -100000000,
+            "multipleOf": 0.01,
+            "type": "string"
+          },
+          "id": {
+            "readOnly": true,
+            "type": "integer"
+          },
+          "mentor": {
+            "type": "integer"
+          },
+          "pending_payout": {
+            "format": "decimal",
+            "maximum": 100000000,
+            "minimum": -100000000,
+            "multipleOf": 0.01,
+            "type": "string"
+          },
+          "total_claimed": {
+            "format": "decimal",
+            "maximum": 100000000,
+            "minimum": -100000000,
+            "multipleOf": 0.01,
+            "type": "string"
+          },
+          "total_donated": {
+            "format": "decimal",
+            "maximum": 100000000,
+            "minimum": -100000000,
+            "multipleOf": 0.01,
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "mentor"
+        ],
+        "type": "object"
+      },
+      "ParentConsentVerification": {
+        "properties": {
+          "id": {
+            "readOnly": true,
+            "type": "integer"
+          },
+          "mentee": {
+            "type": "integer"
+          },
+          "otp_attempts": {
+            "format": "int64",
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "otp_expires_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "otp_hash": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "otp_sent_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "parent_mobile": {
+            "maxLength": 20,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "verified",
+              "expired",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true,
+            "type": "string"
+          },
+          "verified_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "mentee"
+        ],
+        "type": "object"
+      },
+      "ParentOtpSend": {
+        "properties": {
+          "mentee_id": {
+            "type": "integer"
+          },
+          "parent_mobile": {
+            "maxLength": 20,
+            "type": "string"
+          }
+        },
+        "required": [
+          "mentee_id"
+        ],
+        "type": "object"
+      },
+      "ParentOtpVerify": {
+        "properties": {
+          "mentee_id": {
+            "type": "integer"
+          },
+          "otp": {
+            "maxLength": 6,
+            "type": "string"
+          }
+        },
+        "required": [
+          "mentee_id",
+          "otp"
+        ],
+        "type": "object"
+      },
+      "PayoutTransaction": {
+        "properties": {
+          "amount": {
+            "format": "decimal",
+            "maximum": 100000000,
+            "minimum": -100000000,
+            "multipleOf": 0.01,
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "id": {
+            "readOnly": true,
+            "type": "integer"
+          },
+          "mentor": {
+            "type": "integer"
+          },
+          "note": {
+            "type": "string"
+          },
+          "processed_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "reference_id": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "session": {
+            "nullable": true,
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "processing",
+              "paid",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "transaction_type": {
+            "enum": [
+              "session_claim",
+              "bank_payout",
+              "adjustment"
+            ],
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "transaction_type",
+          "amount",
+          "mentor"
+        ],
+        "type": "object"
+      },
+      "Session": {
+        "properties": {
+          "availability_slot": {
+            "nullable": true,
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "duration_minutes": {
+            "format": "int64",
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "feedback": {
+            "properties": {
+              "comments": {
+                "type": "string"
+              },
+              "id": {
+                "readOnly": true,
+                "type": "integer"
+              },
+              "rating": {
+                "format": "int64",
+                "maximum": 9223372036854775807,
+                "minimum": 0,
+                "nullable": true,
+                "type": "integer"
+              },
+              "session": {
+                "type": "integer"
+              },
+              "submitted_at": {
+                "format": "date-time",
+                "readOnly": true,
+                "type": "string"
+              },
+              "topics_discussed": {
+                "type": "object"
+              },
+              "updated_at": {
+                "format": "date-time",
+                "nullable": true,
+                "readOnly": true,
+                "type": "string"
+              }
+            },
+            "readOnly": true,
+            "required": [
+              "session"
+            ],
+            "type": "object"
+          },
+          "host_join_url": {
+            "format": "uri",
+            "maxLength": 200,
+            "pattern": "^(?:[a-z0-9.+-]*)://(?:[^\\s:@/]+(?::[^\\s:@/]*)?@)?(?:(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)(?:\\.(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}|\\[[0-9a-f:.]+\\]|([a-z¡-￿0-9](?:[a-z¡-￿0-9-]{0,61}[a-z¡-￿0-9])?(?:\\.(?!-)[a-z¡-￿0-9-]{1,63}(?<!-))*\\.(?!-)(?:[a-z¡-￿-]{2,63}|xn--[a-z0-9]{1,59})(?<!-)\\.?|localhost))(?::[0-9]{1,5})?(?:[/?#][^\\s]*)?\\z",
+            "type": "string"
+          },
+          "id": {
+            "readOnly": true,
+            "type": "integer"
+          },
+          "join_url": {
+            "format": "uri",
+            "maxLength": 200,
+            "pattern": "^(?:[a-z0-9.+-]*)://(?:[^\\s:@/]+(?::[^\\s:@/]*)?@)?(?:(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)(?:\\.(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}|\\[[0-9a-f:.]+\\]|([a-z¡-￿0-9](?:[a-z¡-￿0-9-]{0,61}[a-z¡-￿0-9])?(?:\\.(?!-)[a-z¡-￿0-9-]{1,63}(?<!-))*\\.(?!-)(?:[a-z¡-￿-]{2,63}|xn--[a-z0-9]{1,59})(?<!-)\\.?|localhost))(?::[0-9]{1,5})?(?:[/?#][^\\s]*)?\\z",
+            "type": "string"
+          },
+          "mentee": {
+            "type": "integer"
+          },
+          "mentee_first_name": {
+            "readOnly": true,
+            "type": "string"
+          },
+          "mentee_last_name": {
+            "readOnly": true,
+            "type": "string"
+          },
+          "mentee_name": {
+            "readOnly": true,
+            "type": "string"
+          },
+          "mentee_notes": {
+            "type": "string"
+          },
+          "mentor": {
+            "type": "integer"
+          },
+          "mentor_notes": {
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "online",
+              "in_person"
+            ],
+            "type": "string"
+          },
+          "scheduled_end": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "scheduled_start": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "requested",
+              "approved",
+              "scheduled",
+              "completed",
+              "canceled",
+              "no_show"
+            ],
+            "type": "string"
+          },
+          "timezone": {
+            "maxLength": 50,
+            "type": "string"
+          },
+          "topic_tags": {
+            "type": "object"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "scheduled_start",
+          "scheduled_end",
+          "mentor"
+        ],
+        "type": "object"
+      },
+      "SessionDisposition": {
+        "properties": {
+          "action": {
+            "enum": [
+              "claim",
+              "donate",
+              "report"
+            ],
+            "type": "string"
+          },
+          "amount": {
+            "format": "decimal",
+            "maximum": 100000000,
+            "minimum": -100000000,
+            "multipleOf": 0.01,
+            "type": "string"
+          },
+          "decided_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "id": {
+            "readOnly": true,
+            "type": "integer"
+          },
+          "mentor": {
+            "type": "integer"
+          },
+          "note": {
+            "type": "string"
+          },
+          "session": {
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "confirmed",
+              "rejected"
+            ],
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "session",
+          "mentor"
+        ],
+        "type": "object"
+      },
+      "SessionFeedback": {
+        "properties": {
+          "comments": {
+            "type": "string"
+          },
+          "id": {
+            "readOnly": true,
+            "type": "integer"
+          },
+          "rating": {
+            "format": "int64",
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "nullable": true,
+            "type": "integer"
+          },
+          "session": {
+            "type": "integer"
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "topics_discussed": {
+            "type": "object"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "session"
+        ],
+        "type": "object"
+      },
+      "SessionIssueReport": {
+        "properties": {
+          "category": {
+            "enum": [
+              "technical_issue",
+              "mentee_no_show",
+              "safety_concern",
+              "other"
+            ],
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "readOnly": true,
+            "type": "integer"
+          },
+          "mentor": {
+            "type": "integer"
+          },
+          "resolution_notes": {
+            "type": "string"
+          },
+          "resolved_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "session": {
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "in_review",
+              "resolved",
+              "dismissed"
+            ],
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "description",
+          "session",
+          "mentor"
+        ],
+        "type": "object"
+      },
+      "TokenRefresh": {
+        "properties": {
+          "access": {
+            "readOnly": true,
+            "type": "string"
+          },
+          "refresh": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "refresh"
+        ],
+        "type": "object"
+      },
+      "TrainingModule": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "estimated_minutes": {
+            "format": "int64",
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "nullable": true,
+            "type": "integer"
+          },
+          "id": {
+            "readOnly": true,
+            "type": "integer"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "lesson_outline": {
+            "type": "object"
+          },
+          "order": {
+            "format": "int64",
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "title": {
+            "maxLength": 200,
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Backend APIs for mentee and mentor workflows.",
+    "title": "Bond Room API",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.2",
+  "paths": {
+    "/api/auth/logout/": {
+      "post": {
+        "description": "",
+        "operationId": "createLogoutPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {}
+            },
+            "multipart/form-data": {
+              "schema": {}
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/auth/mentor-contact/send-otp/": {
+      "post": {
+        "description": "",
+        "operationId": "createMentorContactOtpSendPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorContactOtpSend"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorContactOtpSend"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorContactOtpSend"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorContactOtpSend"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/auth/mentor-contact/verify-otp/": {
+      "post": {
+        "description": "",
+        "operationId": "createMentorContactOtpVerifyPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorContactOtpVerify"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorContactOtpVerify"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorContactOtpVerify"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorContactOtpVerify"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/auth/parent-consent/send-otp/": {
+      "post": {
+        "description": "",
+        "operationId": "createParentOtpSendPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParentOtpSend"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/ParentOtpSend"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ParentOtpSend"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParentOtpSend"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/auth/parent-consent/verify-otp/": {
+      "post": {
+        "description": "",
+        "operationId": "createParentOtpVerifyPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParentOtpVerify"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/ParentOtpVerify"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ParentOtpVerify"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParentOtpVerify"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/auth/register/admin/": {
+      "post": {
+        "description": "",
+        "operationId": "createAdminRegisterPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminRegister"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminRegister"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminRegister"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminRegister"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/auth/register/mentee/": {
+      "post": {
+        "description": "",
+        "operationId": "createMenteeRegisterPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MenteeRegister"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MenteeRegister"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MenteeRegister"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MenteeRegister"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/auth/register/mentor/": {
+      "post": {
+        "description": "",
+        "operationId": "createMentorRegisterPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorRegister"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorRegister"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorRegister"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorRegister"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/donation-transactions/": {
+      "get": {
+        "description": "",
+        "operationId": "listDonationTransactionsGet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DonationTransaction"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "post": {
+        "description": "",
+        "operationId": "createDonationTransactionPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DonationTransaction"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/DonationTransaction"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/DonationTransaction"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DonationTransaction"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/donation-transactions/{id}/": {
+      "delete": {
+        "description": "",
+        "operationId": "destroyDonationTransactionDelete",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this donation transaction.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "get": {
+        "description": "",
+        "operationId": "retrieveDonationTransactionGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this donation transaction.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DonationTransaction"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "patch": {
+        "description": "",
+        "operationId": "partialUpdateDonationTransactionPatch",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this donation transaction.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DonationTransaction"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/DonationTransaction"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/DonationTransaction"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DonationTransaction"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "put": {
+        "description": "",
+        "operationId": "updateDonationTransactionPut",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this donation transaction.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DonationTransaction"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/DonationTransaction"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/DonationTransaction"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DonationTransaction"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/login/": {
+      "post": {
+        "description": "",
+        "operationId": "createBondRoomTokenObtainPairPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BondRoomTokenObtainPair"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/BondRoomTokenObtainPair"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/BondRoomTokenObtainPair"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BondRoomTokenObtainPair"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/match-recommendations/": {
+      "get": {
+        "description": "",
+        "operationId": "listMatchRecommendationsGet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MatchRecommendation"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/match-recommendations/{id}/": {
+      "get": {
+        "description": "",
+        "operationId": "retrieveMatchRecommendationGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this match recommendation.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchRecommendation"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentee-preferences/": {
+      "get": {
+        "description": "",
+        "operationId": "listMenteePreferencesGet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MenteePreferences"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "post": {
+        "description": "",
+        "operationId": "createMenteePreferencesPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MenteePreferences"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MenteePreferences"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MenteePreferences"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MenteePreferences"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentee-preferences/{id}/": {
+      "delete": {
+        "description": "",
+        "operationId": "destroyMenteePreferencesDelete",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentee preferences.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "get": {
+        "description": "",
+        "operationId": "retrieveMenteePreferencesGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentee preferences.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MenteePreferences"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "patch": {
+        "description": "",
+        "operationId": "partialUpdateMenteePreferencesPatch",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentee preferences.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MenteePreferences"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MenteePreferences"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MenteePreferences"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MenteePreferences"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "put": {
+        "description": "",
+        "operationId": "updateMenteePreferencesPut",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentee preferences.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MenteePreferences"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MenteePreferences"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MenteePreferences"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MenteePreferences"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentee-requests/": {
+      "get": {
+        "description": "",
+        "operationId": "listMenteeRequestsGet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MenteeRequest"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "post": {
+        "description": "",
+        "operationId": "createMenteeRequestPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MenteeRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MenteeRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MenteeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MenteeRequest"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentee-requests/{id}/": {
+      "delete": {
+        "description": "",
+        "operationId": "destroyMenteeRequestDelete",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentee request.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "get": {
+        "description": "",
+        "operationId": "retrieveMenteeRequestGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentee request.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MenteeRequest"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "patch": {
+        "description": "",
+        "operationId": "partialUpdateMenteeRequestPatch",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentee request.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MenteeRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MenteeRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MenteeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MenteeRequest"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "put": {
+        "description": "",
+        "operationId": "updateMenteeRequestPut",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentee request.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MenteeRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MenteeRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MenteeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MenteeRequest"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentee-requests/{id}/recommendations/": {
+      "get": {
+        "description": "",
+        "operationId": "recommendationsMenteeRequestGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentee request.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MenteeRequest"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentees/": {
+      "get": {
+        "description": "",
+        "operationId": "listMenteesGet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Mentee"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "post": {
+        "description": "",
+        "operationId": "createMenteePost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentee"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentee"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentee"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mentee"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentees/{id}/": {
+      "delete": {
+        "description": "",
+        "operationId": "destroyMenteeDelete",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentee.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "get": {
+        "description": "",
+        "operationId": "retrieveMenteeGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentee.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mentee"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "patch": {
+        "description": "",
+        "operationId": "partialUpdateMenteePatch",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentee.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentee"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentee"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentee"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mentee"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "put": {
+        "description": "",
+        "operationId": "updateMenteePut",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentee.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentee"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentee"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentee"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mentee"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentees/{id}/dashboard/": {
+      "get": {
+        "description": "",
+        "operationId": "dashboardMenteeGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentee.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mentee"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentees/{id}/preferences/": {
+      "get": {
+        "description": "",
+        "operationId": "preferencesMenteeGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentee.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mentee"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "patch": {
+        "description": "",
+        "operationId": "preferencesMenteePatch",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentee.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentee"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentee"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentee"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mentee"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "put": {
+        "description": "",
+        "operationId": "preferencesMenteePut",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentee.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentee"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentee"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentee"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mentee"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentor-availability-slots/": {
+      "get": {
+        "description": "",
+        "operationId": "listMentorAvailabilitySlotsGet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MentorAvailabilitySlot"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "post": {
+        "description": "",
+        "operationId": "createMentorAvailabilitySlotPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorAvailabilitySlot"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorAvailabilitySlot"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorAvailabilitySlot"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorAvailabilitySlot"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentor-availability-slots/{id}/": {
+      "delete": {
+        "description": "",
+        "operationId": "destroyMentorAvailabilitySlotDelete",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor availability slot.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "get": {
+        "description": "",
+        "operationId": "retrieveMentorAvailabilitySlotGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor availability slot.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorAvailabilitySlot"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "patch": {
+        "description": "",
+        "operationId": "partialUpdateMentorAvailabilitySlotPatch",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor availability slot.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorAvailabilitySlot"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorAvailabilitySlot"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorAvailabilitySlot"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorAvailabilitySlot"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "put": {
+        "description": "",
+        "operationId": "updateMentorAvailabilitySlotPut",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor availability slot.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorAvailabilitySlot"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorAvailabilitySlot"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorAvailabilitySlot"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorAvailabilitySlot"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentor-contact-verifications/": {
+      "get": {
+        "description": "",
+        "operationId": "listMentorContactVerificationsGet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MentorContactVerification"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "post": {
+        "description": "",
+        "operationId": "createMentorContactVerificationPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorContactVerification"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorContactVerification"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorContactVerification"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorContactVerification"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentor-contact-verifications/{id}/": {
+      "delete": {
+        "description": "",
+        "operationId": "destroyMentorContactVerificationDelete",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor contact verification.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "get": {
+        "description": "",
+        "operationId": "retrieveMentorContactVerificationGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor contact verification.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorContactVerification"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "patch": {
+        "description": "",
+        "operationId": "partialUpdateMentorContactVerificationPatch",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor contact verification.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorContactVerification"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorContactVerification"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorContactVerification"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorContactVerification"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "put": {
+        "description": "",
+        "operationId": "updateMentorContactVerificationPut",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor contact verification.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorContactVerification"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorContactVerification"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorContactVerification"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorContactVerification"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentor-identity-verifications/": {
+      "get": {
+        "description": "",
+        "operationId": "listMentorIdentityVerificationsGet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MentorIdentityVerification"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "post": {
+        "description": "",
+        "operationId": "createMentorIdentityVerificationPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorIdentityVerification"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorIdentityVerification"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorIdentityVerification"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorIdentityVerification"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentor-identity-verifications/{id}/": {
+      "delete": {
+        "description": "",
+        "operationId": "destroyMentorIdentityVerificationDelete",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor identity verification.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "get": {
+        "description": "",
+        "operationId": "retrieveMentorIdentityVerificationGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor identity verification.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorIdentityVerification"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "patch": {
+        "description": "",
+        "operationId": "partialUpdateMentorIdentityVerificationPatch",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor identity verification.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorIdentityVerification"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorIdentityVerification"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorIdentityVerification"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorIdentityVerification"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "put": {
+        "description": "",
+        "operationId": "updateMentorIdentityVerificationPut",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor identity verification.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorIdentityVerification"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorIdentityVerification"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorIdentityVerification"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorIdentityVerification"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentor-onboarding-statuses/": {
+      "get": {
+        "description": "",
+        "operationId": "listMentorOnboardingStatusesGet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MentorOnboardingStatus"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "post": {
+        "description": "",
+        "operationId": "createMentorOnboardingStatusPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorOnboardingStatus"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorOnboardingStatus"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorOnboardingStatus"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorOnboardingStatus"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentor-onboarding-statuses/{id}/": {
+      "delete": {
+        "description": "",
+        "operationId": "destroyMentorOnboardingStatusDelete",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor onboarding status.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "get": {
+        "description": "",
+        "operationId": "retrieveMentorOnboardingStatusGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor onboarding status.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorOnboardingStatus"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "patch": {
+        "description": "",
+        "operationId": "partialUpdateMentorOnboardingStatusPatch",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor onboarding status.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorOnboardingStatus"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorOnboardingStatus"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorOnboardingStatus"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorOnboardingStatus"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "put": {
+        "description": "",
+        "operationId": "updateMentorOnboardingStatusPut",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor onboarding status.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorOnboardingStatus"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorOnboardingStatus"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorOnboardingStatus"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorOnboardingStatus"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentor-profiles/": {
+      "get": {
+        "description": "",
+        "operationId": "listMentorProfilesGet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MentorProfile"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "post": {
+        "description": "",
+        "operationId": "createMentorProfilePost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorProfile"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorProfile"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorProfile"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorProfile"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentor-profiles/{id}/": {
+      "delete": {
+        "description": "",
+        "operationId": "destroyMentorProfileDelete",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor profile.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "get": {
+        "description": "",
+        "operationId": "retrieveMentorProfileGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor profile.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorProfile"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "patch": {
+        "description": "",
+        "operationId": "partialUpdateMentorProfilePatch",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor profile.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorProfile"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorProfile"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorProfile"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorProfile"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "put": {
+        "description": "",
+        "operationId": "updateMentorProfilePut",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor profile.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorProfile"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorProfile"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorProfile"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorProfile"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentor-training-progress/": {
+      "get": {
+        "description": "",
+        "operationId": "listMentorTrainingProgressesGet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MentorTrainingProgress"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "post": {
+        "description": "",
+        "operationId": "createMentorTrainingProgressPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorTrainingProgress"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorTrainingProgress"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorTrainingProgress"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorTrainingProgress"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentor-training-progress/{id}/": {
+      "delete": {
+        "description": "",
+        "operationId": "destroyMentorTrainingProgressDelete",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor training progress.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "get": {
+        "description": "",
+        "operationId": "retrieveMentorTrainingProgressGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor training progress.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorTrainingProgress"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "patch": {
+        "description": "",
+        "operationId": "partialUpdateMentorTrainingProgressPatch",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor training progress.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorTrainingProgress"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorTrainingProgress"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorTrainingProgress"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorTrainingProgress"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "put": {
+        "description": "",
+        "operationId": "updateMentorTrainingProgressPut",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor training progress.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorTrainingProgress"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorTrainingProgress"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorTrainingProgress"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorTrainingProgress"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentor-wallets/": {
+      "get": {
+        "description": "",
+        "operationId": "listMentorWalletsGet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MentorWallet"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentor-wallets/{id}/": {
+      "get": {
+        "description": "",
+        "operationId": "retrieveMentorWalletGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor wallet.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorWallet"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "patch": {
+        "description": "",
+        "operationId": "partialUpdateMentorWalletPatch",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor wallet.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorWallet"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorWallet"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorWallet"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorWallet"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "put": {
+        "description": "",
+        "operationId": "updateMentorWalletPut",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor wallet.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorWallet"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorWallet"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorWallet"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorWallet"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentors/": {
+      "get": {
+        "description": "",
+        "operationId": "listMentorsGet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Mentor"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "post": {
+        "description": "",
+        "operationId": "createMentorPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentor"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentor"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentor"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mentor"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentors/recommended/": {
+      "get": {
+        "description": "",
+        "operationId": "recommendedMentorGet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mentor"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentors/{id}/": {
+      "delete": {
+        "description": "",
+        "operationId": "destroyMentorDelete",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "get": {
+        "description": "",
+        "operationId": "retrieveMentorGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mentor"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "patch": {
+        "description": "",
+        "operationId": "partialUpdateMentorPatch",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentor"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentor"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentor"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mentor"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "put": {
+        "description": "",
+        "operationId": "updateMentorPut",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentor"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentor"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentor"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mentor"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentors/{id}/admin-decision/": {
+      "post": {
+        "description": "",
+        "operationId": "adminDecisionMentorPost",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentor"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentor"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentor"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mentor"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentors/{id}/impact-dashboard/": {
+      "get": {
+        "description": "",
+        "operationId": "impactDashboardMentorGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mentor"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentors/{id}/onboarding/": {
+      "get": {
+        "description": "",
+        "operationId": "onboardingMentorGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mentor"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentors/{id}/profile/": {
+      "get": {
+        "description": "",
+        "operationId": "profileMentorGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mentor"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "patch": {
+        "description": "",
+        "operationId": "profileMentorPatch",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentor"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentor"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentor"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mentor"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "put": {
+        "description": "",
+        "operationId": "profileMentorPut",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentor"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentor"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Mentor"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mentor"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/parent-consent-verifications/": {
+      "get": {
+        "description": "",
+        "operationId": "listParentConsentVerificationsGet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ParentConsentVerification"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "post": {
+        "description": "",
+        "operationId": "createParentConsentVerificationPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParentConsentVerification"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/ParentConsentVerification"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ParentConsentVerification"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParentConsentVerification"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/parent-consent-verifications/{id}/": {
+      "delete": {
+        "description": "",
+        "operationId": "destroyParentConsentVerificationDelete",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this parent consent verification.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "get": {
+        "description": "",
+        "operationId": "retrieveParentConsentVerificationGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this parent consent verification.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParentConsentVerification"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "patch": {
+        "description": "",
+        "operationId": "partialUpdateParentConsentVerificationPatch",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this parent consent verification.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParentConsentVerification"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/ParentConsentVerification"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ParentConsentVerification"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParentConsentVerification"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "put": {
+        "description": "",
+        "operationId": "updateParentConsentVerificationPut",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this parent consent verification.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParentConsentVerification"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/ParentConsentVerification"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ParentConsentVerification"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParentConsentVerification"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/payout-transactions/": {
+      "get": {
+        "description": "",
+        "operationId": "listPayoutTransactionsGet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PayoutTransaction"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "post": {
+        "description": "",
+        "operationId": "createPayoutTransactionPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutTransaction"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutTransaction"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutTransaction"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutTransaction"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/payout-transactions/{id}/": {
+      "delete": {
+        "description": "",
+        "operationId": "destroyPayoutTransactionDelete",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this payout transaction.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "get": {
+        "description": "",
+        "operationId": "retrievePayoutTransactionGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this payout transaction.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutTransaction"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "patch": {
+        "description": "",
+        "operationId": "partialUpdatePayoutTransactionPatch",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this payout transaction.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutTransaction"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutTransaction"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutTransaction"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutTransaction"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "put": {
+        "description": "",
+        "operationId": "updatePayoutTransactionPut",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this payout transaction.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutTransaction"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutTransaction"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutTransaction"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutTransaction"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/schema/": {
+      "get": {
+        "description": "",
+        "operationId": "listBondRoomSchemasGet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/vnd.oai.openapi+json": {
+                "schema": {
+                  "items": {},
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/session-dispositions/": {
+      "get": {
+        "description": "",
+        "operationId": "listSessionDispositionsGet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SessionDisposition"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "post": {
+        "description": "",
+        "operationId": "createSessionDispositionPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionDisposition"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionDisposition"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionDisposition"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDisposition"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/session-dispositions/{id}/": {
+      "delete": {
+        "description": "",
+        "operationId": "destroySessionDispositionDelete",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this session disposition.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "get": {
+        "description": "",
+        "operationId": "retrieveSessionDispositionGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this session disposition.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDisposition"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "patch": {
+        "description": "",
+        "operationId": "partialUpdateSessionDispositionPatch",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this session disposition.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionDisposition"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionDisposition"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionDisposition"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDisposition"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "put": {
+        "description": "",
+        "operationId": "updateSessionDispositionPut",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this session disposition.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionDisposition"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionDisposition"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionDisposition"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDisposition"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/session-feedback/": {
+      "get": {
+        "description": "",
+        "operationId": "listSessionFeedbacksGet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SessionFeedback"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "post": {
+        "description": "",
+        "operationId": "createSessionFeedbackPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionFeedback"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionFeedback"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionFeedback"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionFeedback"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/session-feedback/{id}/": {
+      "delete": {
+        "description": "",
+        "operationId": "destroySessionFeedbackDelete",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this session feedback.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "get": {
+        "description": "",
+        "operationId": "retrieveSessionFeedbackGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this session feedback.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionFeedback"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "patch": {
+        "description": "",
+        "operationId": "partialUpdateSessionFeedbackPatch",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this session feedback.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionFeedback"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionFeedback"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionFeedback"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionFeedback"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "put": {
+        "description": "",
+        "operationId": "updateSessionFeedbackPut",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this session feedback.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionFeedback"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionFeedback"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionFeedback"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionFeedback"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/session-issue-reports/": {
+      "get": {
+        "description": "",
+        "operationId": "listSessionIssueReportsGet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SessionIssueReport"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "post": {
+        "description": "",
+        "operationId": "createSessionIssueReportPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionIssueReport"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionIssueReport"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionIssueReport"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionIssueReport"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/session-issue-reports/{id}/": {
+      "delete": {
+        "description": "",
+        "operationId": "destroySessionIssueReportDelete",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this session issue report.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "get": {
+        "description": "",
+        "operationId": "retrieveSessionIssueReportGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this session issue report.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionIssueReport"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "patch": {
+        "description": "",
+        "operationId": "partialUpdateSessionIssueReportPatch",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this session issue report.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionIssueReport"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionIssueReport"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionIssueReport"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionIssueReport"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "put": {
+        "description": "",
+        "operationId": "updateSessionIssueReportPut",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this session issue report.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionIssueReport"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionIssueReport"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionIssueReport"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionIssueReport"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/sessions/": {
+      "get": {
+        "description": "",
+        "operationId": "listSessionsGet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Session"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "post": {
+        "description": "",
+        "operationId": "createSessionPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/sessions/{id}/": {
+      "delete": {
+        "description": "",
+        "operationId": "destroySessionDelete",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this session.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "get": {
+        "description": "",
+        "operationId": "retrieveSessionGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this session.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "patch": {
+        "description": "",
+        "operationId": "partialUpdateSessionPatch",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this session.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "put": {
+        "description": "",
+        "operationId": "updateSessionPut",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this session.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/sessions/{id}/disposition/": {
+      "post": {
+        "description": "",
+        "operationId": "dispositionSessionPost",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this session.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/sessions/{id}/feedback/": {
+      "get": {
+        "description": "",
+        "operationId": "feedbackSessionGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this session.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "post": {
+        "description": "",
+        "operationId": "feedbackSessionPost",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this session.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/sessions/{id}/join-link/": {
+      "post": {
+        "description": "",
+        "operationId": "joinLinkSessionPost",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this session.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/sessions/{id}/mentee-profile/": {
+      "get": {
+        "description": "",
+        "operationId": "menteeProfileSessionGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this session.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/token/refresh/": {
+      "post": {
+        "description": "Takes a refresh type JSON web token and returns an access type JSON web\ntoken if the refresh token is valid.",
+        "operationId": "createTokenRefreshPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenRefresh"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenRefresh"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenRefresh"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenRefresh"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/training-modules/": {
+      "get": {
+        "description": "",
+        "operationId": "listTrainingModulesGet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TrainingModule"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/training-modules/{id}/": {
+      "get": {
+        "description": "",
+        "operationId": "retrieveTrainingModuleGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this training module.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingModule"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    }
+  }
+}
