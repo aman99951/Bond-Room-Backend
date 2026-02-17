@@ -18,6 +18,31 @@ for candidate in (REPO_ROOT, BACKEND_DIR):
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "bondroom_backend.settings")
 
+_STARTUP_MIGRATIONS_RAN = False
+
+
+def _should_run_startup_migrations() -> bool:
+    if os.environ.get("VERCEL", "").strip() == "":
+        return False
+    disabled = os.environ.get("DISABLE_STARTUP_MIGRATIONS", "").strip().lower()
+    return disabled not in {"1", "true", "yes"}
+
+
+def _run_startup_migrations() -> None:
+    global _STARTUP_MIGRATIONS_RAN
+    if _STARTUP_MIGRATIONS_RAN or not _should_run_startup_migrations():
+        return
+
+    import django
+    from django.core.management import call_command
+
+    django.setup()
+    call_command("migrate", interactive=False, run_syncdb=True, verbosity=0)
+    _STARTUP_MIGRATIONS_RAN = True
+
+
+_run_startup_migrations()
+
 from django.core.wsgi import get_wsgi_application  # noqa: E402
 
 
