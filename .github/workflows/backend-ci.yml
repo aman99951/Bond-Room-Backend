@@ -27,6 +27,16 @@ jobs:
           pip install -r requirements.txt
           pip install pytest pytest-django pytest-cov
 
+      - name: Migration guard (must be clean and fully applicable)
+        env:
+          DJANGO_SETTINGS_MODULE: bondroom_backend.settings_test
+          USE_SQLITE_FOR_TESTS: "1"
+        run: |
+          python manage.py makemigrations --check --dry-run
+          python manage.py migrate --noinput
+          python manage.py migrate --check
+          python manage.py check
+
       - name: Run unit tests (JUnit + coverage)
         env:
           DJANGO_SETTINGS_MODULE: bondroom_backend.settings_test
