@@ -18,6 +18,7 @@ from core.models import (
     MentorIdentityVerification,
     MentorOnboardingStatus,
     MentorProfile,
+    MentorTrainingQuizAttempt,
     MentorTrainingProgress,
     MentorWallet,
     Mentee,
@@ -52,12 +53,20 @@ POST_ONLY_AUTHENTICATED_PATHS = {
     "/api/mentors/{id}/admin-decision/",
     "/api/sessions/{id}/disposition/",
     "/api/sessions/{id}/join-link/",
+    "/api/training-modules/{id}/watch-video/",
+    "/api/training-modules/quiz/start/",
+    "/api/training-modules/quiz/submit/",
+    "/api/training-modules/quiz/abandon/",
 }
 
 REGISTER_PATHS = {
     "/api/auth/register/admin/",
     "/api/auth/register/mentee/",
     "/api/auth/register/mentor/",
+}
+
+CREATED_PATHS = {
+    "/api/training-modules/quiz/start/",
 }
 
 
@@ -226,8 +235,8 @@ class ApiAutomationCoverageTests(APITestCase):
         cls.training_progress = MentorTrainingProgress.objects.create(
             mentor=cls.mentor,
             module=cls.training_module,
-            status="in_progress",
-            progress_percent=40,
+            status="completed",
+            progress_percent=100,
         )
         cls.mentor_profile = MentorProfile.objects.create(
             mentor=cls.mentor,
@@ -324,11 +333,14 @@ class ApiAutomationCoverageTests(APITestCase):
             "/api/sessions/{id}/join-link/": self.session.id,
             "/api/sessions/{id}/mentee-profile/": self.session.id,
             "/api/training-modules/{id}/": self.training_module.id,
+            "/api/training-modules/{id}/watch-video/": self.training_module.id,
         }
 
     def _resolve_path(self, schema_path):
         if schema_path == "/api/mentors/recommended/":
             return f"/api/mentors/recommended/?mentee_request_id={self.mentee_request.id}"
+        if schema_path == "/api/training-modules/quiz/":
+            return f"/api/training-modules/quiz/?mentor_id={self.mentor.id}"
         endpoint_id = self._endpoint_id_map().get(schema_path)
         if endpoint_id is not None:
             return schema_path.replace("{id}", str(endpoint_id))
@@ -430,6 +442,63 @@ class ApiAutomationCoverageTests(APITestCase):
             return {"action": "claim", "amount": "120.00", "note": "Automation claim"}
         if schema_path == "/api/sessions/{id}/join-link/":
             return {}
+        if schema_path == "/api/training-modules/{id}/watch-video/":
+            return {"mentor_id": self.mentor.id, "video_index": 1}
+        if schema_path == "/api/training-modules/quiz/start/":
+            return {"mentor_id": self.mentor.id}
+        if schema_path == "/api/training-modules/quiz/submit/":
+            attempt = MentorTrainingQuizAttempt.objects.filter(
+                mentor=self.mentor,
+                status="pending",
+            ).first()
+            if not attempt:
+                attempt = MentorTrainingQuizAttempt.objects.create(
+                    mentor=self.mentor,
+                    total_questions=15,
+                    pass_mark=11,
+                    questions=[
+                        {
+                            "question": f"Q{idx + 1}",
+                            "options": ["A", "B", "C", "D"],
+                            "correct_option_index": 0,
+                            "module_title": self.training_module.title,
+                        }
+                        for idx in range(15)
+                    ],
+                    status="pending",
+                )
+            if not attempt:
+                raise AssertionError("Unable to create pending training quiz attempt for submit endpoint.")
+            return {
+                "mentor_id": self.mentor.id,
+                "attempt_id": attempt.id,
+                "selected_answers": [0 for _ in range(15)],
+            }
+        if schema_path == "/api/training-modules/quiz/abandon/":
+            attempt = MentorTrainingQuizAttempt.objects.filter(
+                mentor=self.mentor,
+                status="pending",
+            ).first()
+            if not attempt:
+                attempt = MentorTrainingQuizAttempt.objects.create(
+                    mentor=self.mentor,
+                    total_questions=15,
+                    pass_mark=7,
+                    questions=[
+                        {
+                            "question": f"Q{idx + 1}",
+                            "options": ["A", "B", "C", "D"],
+                            "correct_option_index": 0,
+                            "module_title": self.training_module.title,
+                        }
+                        for idx in range(15)
+                    ],
+                    status="pending",
+                )
+            return {
+                "mentor_id": self.mentor.id,
+                "attempt_id": attempt.id,
+            }
         return None
 
     def _negative_public_case(self, schema_path):
@@ -473,7 +542,7 @@ class ApiAutomationCoverageTests(APITestCase):
         return client_method(path, format="json")
 
     def _expected_positive_status(self, schema_path):
-        if schema_path in REGISTER_PATHS:
+        if schema_path in REGISTER_PATHS or schema_path in CREATED_PATHS:
             return {201}
         return {200}
 

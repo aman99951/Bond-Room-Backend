@@ -1,5 +1,7 @@
 from decimal import Decimal
+import re
 
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Avg, Count, Q, Sum
 from django.utils import timezone
@@ -20,6 +22,7 @@ from .models import (
     MentorIdentityVerification,
     MentorOnboardingStatus,
     MentorProfile,
+    MentorTrainingQuizAttempt,
     MentorTrainingProgress,
     MentorWallet,
     Mentee,
@@ -32,6 +35,9 @@ from .models import (
     SessionFeedback,
     SessionIssueReport,
     TrainingModule,
+)
+from .onboarding import (
+    sync_mentor_onboarding_training_status,
 )
 from .permissions import (
     ROLE_ADMIN,
@@ -73,12 +79,19 @@ from .serializers import (
     SessionIssueReportSerializer,
     SessionSerializer,
     TrainingModuleSerializer,
+    TrainingQuizAbandonSerializer,
+    TrainingQuizStartSerializer,
+    TrainingQuizSubmitSerializer,
+    TrainingVideoWatchSerializer,
     generate_otp,
     hash_otp,
     otp_expiry,
 )
+from .quiz import evaluate_quiz_attempt, generate_training_quiz_questions
 from .zoom import maybe_attach_zoom_links, zoom_is_configured
 from .signals import generate_recommendations_for_request
+
+TRAINING_QUIZ_PASS_MARK = 7
 
 
 def current_mentee_id(request):
@@ -102,6 +115,147 @@ def require_role(request, allowed_roles):
 def deny_if_mentee_mutation(request):
     if user_role(request.user) == ROLE_MENTEE:
         raise PermissionDenied("Mentee users have read-only access for this endpoint.")
+
+
+def build_module_video_payload(module):
+    outline = module.lesson_outline if isinstance(module.lesson_outline, list) else []
+    first_title = (
+        str(outline[0]).strip()
+        if len(outline) >= 1 and str(outline[0]).strip()
+        else "Module walkthrough video 1"
+    )
+    second_title = (
+        str(outline[1]).strip()
+        if len(outline) >= 2 and str(outline[1]).strip()
+        else "Module walkthrough video 2"
+    )
+    video_one_url = (module.video_url_1 or "").strip()
+    video_two_url = (module.video_url_2 or "").strip()
+    return [
+        {"key": "video-1", "title": first_title, "url": video_one_url},
+        {"key": "video-2", "title": second_title, "url": video_two_url},
+    ]
+
+
+def build_training_module_payload_for_mentor(modules, mentor_id):
+    module_list = list(modules)
+    progress_qs = MentorTrainingProgress.objects.filter(
+        mentor_id=mentor_id, module_id__in=[item.id for item in module_list]
+    )
+    progress_map = {item.module_id: item for item in progress_qs}
+
+    payload = []
+    previous_modules_completed = True
+
+    for module in module_list:
+        progress = progress_map.get(module.id)
+        is_completed = bool(
+            progress and (progress.status == "completed" or progress.progress_percent >= 100)
+        )
+        if is_completed:
+            training_status = "completed"
+            progress_percent = 100
+            completed_at = progress.completed_at if progress else None
+        elif previous_modules_completed:
+            training_status = "in_progress"
+            progress_percent = 50 if progress and progress.progress_percent >= 50 else 0
+            completed_at = None
+        else:
+            training_status = "locked"
+            progress_percent = 0
+            completed_at = None
+
+        videos = build_module_video_payload(module)
+        video_progress = [
+            {
+                **item,
+                "watched": training_status == "completed"
+                or (training_status == "in_progress" and item["key"] == "video-1" and progress_percent >= 50),
+            }
+            for item in videos
+        ]
+
+        module_data = TrainingModuleSerializer(module).data
+        module_data.update(
+            {
+                "status": training_status,
+                "training_status": training_status,
+                "progress_percent": progress_percent,
+                "completed_at": completed_at,
+                "videos": videos,
+                "video_progress": video_progress,
+            }
+        )
+        payload.append(module_data)
+        previous_modules_completed = previous_modules_completed and training_status == "completed"
+
+    return payload
+
+
+def sanitize_quiz_questions_for_client(questions):
+    def clean(value):
+        text = str(value or "").strip()
+        text = re.sub(r"^\s*\[\s*q\s*\d+\s*\]\s*", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"^\s*q\s*\d+\s*[:\.\-\)]\s*", "", text, flags=re.IGNORECASE)
+        return text.strip()
+
+    sanitized = []
+    for item in questions or []:
+        options = item.get("options")
+        if not isinstance(options, list):
+            continue
+        sanitized.append(
+            {
+                "question": clean(item.get("question", "")),
+                "options": options[:4],
+                "module_title": item.get("module_title", ""),
+            }
+        )
+    return sanitized
+
+
+def build_training_quiz_summary(mentor):
+    latest_attempt = (
+        MentorTrainingQuizAttempt.objects.filter(mentor=mentor)
+        .order_by("-started_at", "-id")
+        .first()
+    )
+    passed = MentorTrainingQuizAttempt.objects.filter(mentor=mentor, status="passed").exists()
+    return {
+        "has_passed": passed,
+        "latest_attempt": (
+            {
+                "id": latest_attempt.id,
+                "status": latest_attempt.status,
+                "score": latest_attempt.score,
+                "pass_mark": TRAINING_QUIZ_PASS_MARK,
+                "total_questions": latest_attempt.total_questions,
+                "started_at": latest_attempt.started_at,
+                "submitted_at": latest_attempt.submitted_at,
+            }
+            if latest_attempt
+            else None
+        ),
+    }
+
+
+def serialize_quiz_attempt_for_client(attempt, *, include_questions=False):
+    if not attempt:
+        return None
+
+    payload = {
+        "id": attempt.id,
+        "status": attempt.status,
+        "score": attempt.score,
+        "pass_mark": TRAINING_QUIZ_PASS_MARK,
+        "total_questions": attempt.total_questions,
+        "selected_answers": attempt.selected_answers or [],
+        "started_at": attempt.started_at,
+        "submitted_at": attempt.submitted_at,
+    }
+    if include_questions:
+        payload["questions"] = sanitize_quiz_questions_for_client(attempt.questions)
+    return payload
 
 
 class MenteeRegisterView(GenericAPIView):
@@ -218,7 +372,7 @@ class MentorContactSendOtpView(GenericAPIView):
         if not mentor:
             return Response({"detail": "Mentor not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        otp = generate_otp()
+        otp = (settings.MENTOR_TEST_OTP or "").strip() or generate_otp()
         channel = serializer.validated_data["channel"]
         verification, _ = MentorContactVerification.objects.get_or_create(mentor=mentor)
         now = timezone.now()
@@ -283,6 +437,10 @@ class MentorContactVerifyOtpView(GenericAPIView):
             verification.phone_verified = True
             verification.phone_verified_at = now
             verification.save(update_fields=["phone_verified", "phone_verified_at"])
+            onboarding, _ = MentorOnboardingStatus.objects.get_or_create(mentor=mentor)
+            if onboarding.contact_status != "completed":
+                onboarding.contact_status = "completed"
+                onboarding.save(update_fields=["contact_status", "updated_at", "current_status"])
         return Response({"message": f"{channel.title()} verified successfully."})
 
 
@@ -491,30 +649,18 @@ class MentorViewSet(viewsets.ModelViewSet):
     def onboarding(self, request, pk=None):
         require_role(request, {ROLE_MENTOR, ROLE_ADMIN})
         mentor = self.get_object()
-        onboarding, _ = MentorOnboardingStatus.objects.get_or_create(mentor=mentor)
         identity = MentorIdentityVerification.objects.filter(mentor=mentor).first()
         contact = MentorContactVerification.objects.filter(mentor=mentor).first()
         modules = TrainingModule.objects.filter(is_active=True).order_by("order", "id")
-        progress = MentorTrainingProgress.objects.filter(
-            mentor=mentor, module_id__in=modules.values_list("id", flat=True)
-        )
-        progress_map = {item.module_id: item for item in progress}
-        module_payload = []
-        for module in modules:
-            item = progress_map.get(module.id)
-            module_payload.append(
-                {
-                    **TrainingModuleSerializer(module).data,
-                    "status": item.status if item else "locked",
-                    "progress_percent": item.progress_percent if item else 0,
-                }
-            )
+        module_payload = build_training_module_payload_for_mentor(modules, mentor.id)
+        onboarding = sync_mentor_onboarding_training_status(mentor, module_payload)
         return Response(
             {
                 "status": MentorOnboardingStatusSerializer(onboarding).data,
                 "identity_verification": MentorIdentityVerificationSerializer(identity).data if identity else None,
                 "contact_verification": MentorContactVerificationSerializer(contact).data if contact else None,
                 "training_modules": module_payload,
+                "training_quiz": build_training_quiz_summary(mentor),
             }
         )
 
@@ -554,7 +700,16 @@ class MentorViewSet(viewsets.ModelViewSet):
                 identity_decision,
                 onboarding.identity_status,
             )
+            modules = TrainingModule.objects.filter(is_active=True).order_by("order", "id")
+            module_payload = build_training_module_payload_for_mentor(modules, mentor.id)
             next_training_status = decision.get("training_status", onboarding.training_status)
+            if next_training_status == "completed":
+                quiz_passed = MentorTrainingQuizAttempt.objects.filter(
+                    mentor=mentor,
+                    status="passed",
+                ).exists()
+                if not quiz_passed:
+                    next_training_status = "in_review"
             next_final_status = decision.get("final_approval_status", onboarding.final_approval_status)
             next_final_rejection_reason = decision.get(
                 "final_rejection_reason",
@@ -591,27 +746,14 @@ class MentorViewSet(viewsets.ModelViewSet):
                 ]
             )
 
-        modules = TrainingModule.objects.filter(is_active=True).order_by("order", "id")
-        progress = MentorTrainingProgress.objects.filter(
-            mentor=mentor, module_id__in=modules.values_list("id", flat=True)
-        )
-        progress_map = {item.module_id: item for item in progress}
-        module_payload = []
-        for module in modules:
-            item = progress_map.get(module.id)
-            module_payload.append(
-                {
-                    **TrainingModuleSerializer(module).data,
-                    "status": item.status if item else "locked",
-                    "progress_percent": item.progress_percent if item else 0,
-                }
-            )
+        onboarding = sync_mentor_onboarding_training_status(mentor, module_payload)
 
         return Response(
             {
                 "status": MentorOnboardingStatusSerializer(onboarding).data,
                 "identity_verification": MentorIdentityVerificationSerializer(identity).data if identity else None,
                 "training_modules": module_payload,
+                "training_quiz": build_training_quiz_summary(mentor),
             }
         )
 
@@ -1079,31 +1221,311 @@ class TrainingModuleViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = TrainingModuleSerializer
     permission_classes = [IsMentorOrAdminRole]
 
-    def list(self, request, *args, **kwargs):
-        mentor_id = request.query_params.get("mentor_id")
+    def get_serializer_class(self):
+        if self.action == "watch_video":
+            return TrainingVideoWatchSerializer
+        if self.action == "quiz_start":
+            return TrainingQuizStartSerializer
+        if self.action == "quiz_submit":
+            return TrainingQuizSubmitSerializer
+        if self.action == "quiz_abandon":
+            return TrainingQuizAbandonSerializer
+        return super().get_serializer_class()
+
+    @staticmethod
+    def _modules_fully_completed(module_payload):
+        return bool(module_payload) and all(
+            item.get("training_status") == "completed" for item in module_payload
+        )
+
+    def _resolve_mentor(self, request, mentor_id=None):
         role = user_role(request.user)
         if role == ROLE_MENTOR:
             mentor_id = current_mentor_id(request)
-        modules = self.get_queryset()
+        elif role == ROLE_ADMIN:
+            mentor_id = mentor_id or request.query_params.get("mentor_id")
+        else:
+            raise PermissionDenied("Only mentor or admin can access training modules.")
+
         if not mentor_id:
+            return None
+        mentor = Mentor.objects.filter(id=mentor_id).first()
+        if not mentor:
+            raise ValidationError({"mentor_id": "Mentor not found."})
+        return mentor
+
+    def list(self, request, *args, **kwargs):
+        mentor = self._resolve_mentor(request)
+        modules = self.get_queryset()
+        if not mentor:
             return Response(TrainingModuleSerializer(modules, many=True).data)
-        progress_qs = MentorTrainingProgress.objects.filter(
-            mentor_id=mentor_id, module_id__in=modules.values_list("id", flat=True)
+        payload = build_training_module_payload_for_mentor(modules, mentor.id)
+        sync_mentor_onboarding_training_status(mentor, payload)
+        return Response(payload)
+
+    @action(detail=False, methods=["get"], url_path="quiz")
+    def quiz_status(self, request):
+        mentor = self._resolve_mentor(request)
+        if not mentor:
+            raise ValidationError({"mentor_id": "Mentor is required for this action."})
+
+        modules = list(self.get_queryset())
+        module_payload = build_training_module_payload_for_mentor(modules, mentor.id)
+        onboarding = sync_mentor_onboarding_training_status(mentor, module_payload)
+        completed_modules = sum(
+            1 for item in module_payload if item.get("training_status") == "completed"
         )
-        progress_map = {item.module_id: item for item in progress_qs}
-        payload = []
-        for module in modules:
-            progress = progress_map.get(module.id)
-            module_data = TrainingModuleSerializer(module).data
-            module_data.update(
+
+        latest_attempt = (
+            MentorTrainingQuizAttempt.objects.filter(mentor=mentor)
+            .order_by("-started_at", "-id")
+            .first()
+        )
+        passed = MentorTrainingQuizAttempt.objects.filter(mentor=mentor, status="passed").exists()
+        include_questions = bool(latest_attempt and latest_attempt.status == "pending")
+        return Response(
+            {
+                "quiz_required": bool(module_payload),
+                "modules_completed": self._modules_fully_completed(module_payload),
+                "completed_modules": completed_modules,
+                "total_modules": len(module_payload),
+                "quiz_passed": passed,
+                "latest_attempt": serialize_quiz_attempt_for_client(
+                    latest_attempt, include_questions=include_questions
+                ),
+                "onboarding_training_status": onboarding.training_status,
+            }
+        )
+
+    @action(detail=False, methods=["post"], url_path="quiz/start")
+    def quiz_start(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        mentor = self._resolve_mentor(request, mentor_id=serializer.validated_data.get("mentor_id"))
+        if not mentor:
+            raise ValidationError({"mentor_id": "Mentor is required for this action."})
+
+        modules = list(self.get_queryset())
+        module_payload = build_training_module_payload_for_mentor(modules, mentor.id)
+        if not self._modules_fully_completed(module_payload):
+            return Response(
+                {"detail": "Complete all training modules before starting the quiz."},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        passed_attempt = (
+            MentorTrainingQuizAttempt.objects.filter(mentor=mentor, status="passed")
+            .order_by("-started_at", "-id")
+            .first()
+        )
+        if passed_attempt:
+            onboarding = sync_mentor_onboarding_training_status(mentor, module_payload)
+            return Response(
                 {
-                    "training_status": progress.status if progress else "locked",
-                    "progress_percent": progress.progress_percent if progress else 0,
-                    "completed_at": progress.completed_at if progress else None,
+                    "detail": "Quiz already passed.",
+                    "attempt": serialize_quiz_attempt_for_client(
+                        passed_attempt, include_questions=False
+                    ),
+                    "quiz_passed": True,
+                    "onboarding_training_status": onboarding.training_status,
                 }
             )
-            payload.append(module_data)
-        return Response(payload)
+
+        pending_attempt = (
+            MentorTrainingQuizAttempt.objects.filter(mentor=mentor, status="pending")
+            .order_by("-started_at", "-id")
+            .first()
+        )
+        if pending_attempt:
+            onboarding = sync_mentor_onboarding_training_status(mentor, module_payload)
+            return Response(
+                {
+                    "attempt": serialize_quiz_attempt_for_client(
+                        pending_attempt, include_questions=True
+                    ),
+                    "quiz_passed": False,
+                    "onboarding_training_status": onboarding.training_status,
+                }
+            )
+
+        total_questions = 15
+        pass_mark = TRAINING_QUIZ_PASS_MARK
+        questions, generated_by = generate_training_quiz_questions(
+            modules, total_questions=total_questions
+        )
+        attempt = MentorTrainingQuizAttempt.objects.create(
+            mentor=mentor,
+            total_questions=total_questions,
+            pass_mark=pass_mark,
+            questions=questions,
+            selected_answers=[],
+            score=0,
+            status="pending",
+        )
+        onboarding = sync_mentor_onboarding_training_status(mentor, module_payload)
+        return Response(
+            {
+                "attempt": serialize_quiz_attempt_for_client(attempt, include_questions=True),
+                "generated_by": generated_by,
+                "quiz_passed": False,
+                "onboarding_training_status": onboarding.training_status,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=False, methods=["post"], url_path="quiz/submit")
+    def quiz_submit(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        mentor = self._resolve_mentor(request, mentor_id=serializer.validated_data.get("mentor_id"))
+        if not mentor:
+            raise ValidationError({"mentor_id": "Mentor is required for this action."})
+
+        attempt = MentorTrainingQuizAttempt.objects.filter(
+            id=serializer.validated_data["attempt_id"],
+            mentor=mentor,
+        ).first()
+        if not attempt:
+            return Response({"detail": "Quiz attempt not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if attempt.status != "pending":
+            return Response(
+                {
+                    "detail": "This quiz attempt is already submitted.",
+                    "attempt": serialize_quiz_attempt_for_client(attempt, include_questions=False),
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        score, normalized_answers = evaluate_quiz_attempt(
+            attempt.questions,
+            serializer.validated_data["selected_answers"],
+        )
+        wrong_count = max(0, attempt.total_questions - score)
+        if attempt.pass_mark != TRAINING_QUIZ_PASS_MARK:
+            attempt.pass_mark = TRAINING_QUIZ_PASS_MARK
+        passed = score >= TRAINING_QUIZ_PASS_MARK
+        attempt.selected_answers = normalized_answers
+        attempt.score = score
+        attempt.status = "passed" if passed else "failed"
+        attempt.submitted_at = timezone.now()
+        attempt.save(
+            update_fields=[
+                "pass_mark",
+                "selected_answers",
+                "score",
+                "status",
+                "submitted_at",
+                "updated_at",
+            ]
+        )
+
+        modules = list(self.get_queryset())
+        module_payload = build_training_module_payload_for_mentor(modules, mentor.id)
+        onboarding = sync_mentor_onboarding_training_status(mentor, module_payload)
+        return Response(
+            {
+                "passed": passed,
+                "score": score,
+                "wrong_count": wrong_count,
+                "pass_mark": TRAINING_QUIZ_PASS_MARK,
+                "total_questions": attempt.total_questions,
+                "attempt": serialize_quiz_attempt_for_client(attempt, include_questions=False),
+                "onboarding_training_status": onboarding.training_status,
+            }
+        )
+
+    @action(detail=False, methods=["post"], url_path="quiz/abandon")
+    def quiz_abandon(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        mentor = self._resolve_mentor(request, mentor_id=serializer.validated_data.get("mentor_id"))
+        if not mentor:
+            raise ValidationError({"mentor_id": "Mentor is required for this action."})
+
+        attempt = MentorTrainingQuizAttempt.objects.filter(
+            id=serializer.validated_data["attempt_id"],
+            mentor=mentor,
+        ).first()
+        if not attempt:
+            return Response({"detail": "Quiz attempt not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if attempt.status == "pending":
+            attempt.score = 0
+            attempt.status = "failed"
+            attempt.submitted_at = timezone.now()
+            attempt.save(update_fields=["score", "status", "submitted_at", "updated_at"])
+
+        modules = list(self.get_queryset())
+        module_payload = build_training_module_payload_for_mentor(modules, mentor.id)
+        onboarding = sync_mentor_onboarding_training_status(mentor, module_payload)
+        return Response(
+            {
+                "detail": "Quiz attempt marked as failed.",
+                "attempt": serialize_quiz_attempt_for_client(attempt, include_questions=False),
+                "onboarding_training_status": onboarding.training_status,
+            }
+        )
+
+    @action(detail=True, methods=["post"], url_path="watch-video")
+    def watch_video(self, request, pk=None):
+        module = self.get_object()
+        serializer = TrainingVideoWatchSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        mentor = self._resolve_mentor(request, mentor_id=serializer.validated_data.get("mentor_id"))
+        if not mentor:
+            raise ValidationError({"mentor_id": "Mentor is required for this action."})
+
+        modules = list(self.get_queryset())
+        module_payload = build_training_module_payload_for_mentor(modules, mentor.id)
+        module_state = next((item for item in module_payload if item["id"] == module.id), None)
+        if not module_state:
+            return Response({"detail": "Module not found."}, status=status.HTTP_404_NOT_FOUND)
+        if module_state["training_status"] == "locked":
+            return Response(
+                {"detail": "Complete previous modules first."},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        progress, _ = MentorTrainingProgress.objects.get_or_create(
+            mentor=mentor,
+            module=module,
+            defaults={"status": "in_progress", "progress_percent": 0},
+        )
+        current_percent = 100 if progress.progress_percent >= 100 else 50 if progress.progress_percent >= 50 else 0
+        video_index = serializer.validated_data["video_index"]
+
+        if video_index == 1:
+            next_percent = max(current_percent, 50)
+        else:
+            if current_percent < 50:
+                return Response(
+                    {"detail": "Complete video 1 before marking video 2."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            next_percent = 100
+
+        progress.status = "completed" if next_percent >= 100 else "in_progress"
+        progress.progress_percent = next_percent
+        progress.last_activity_at = timezone.now()
+        progress.completed_at = timezone.now() if next_percent >= 100 else None
+        progress.save(
+            update_fields=[
+                "status",
+                "progress_percent",
+                "last_activity_at",
+                "completed_at",
+                "updated_at",
+            ]
+        )
+
+        module_payload = build_training_module_payload_for_mentor(modules, mentor.id)
+        sync_mentor_onboarding_training_status(mentor, module_payload)
+        updated_module_state = next(item for item in module_payload if item["id"] == module.id)
+        return Response({"module": updated_module_state, "modules": module_payload})
 
 
 class MentorTrainingProgressViewSet(viewsets.ModelViewSet):

@@ -181,9 +181,7 @@
               "gender": {
                 "enum": [
                   "Female",
-                  "Male",
-                  "Non-binary",
-                  "Prefer not to say"
+                  "Male"
                 ],
                 "type": "string"
               },
@@ -337,15 +335,12 @@
           "gender": {
             "enum": [
               "Female",
-              "Male",
-              "Non-binary",
-              "Prefer not to say"
+              "Male"
             ],
             "type": "string"
           },
           "grade": {
             "enum": [
-              "9th Grade",
               "10th Grade",
               "11th Grade",
               "12th Grade"
@@ -447,15 +442,12 @@
           "gender": {
             "enum": [
               "Female",
-              "Male",
-              "Non-binary",
-              "Prefer not to say"
+              "Male"
             ],
             "type": "string"
           },
           "grade": {
             "enum": [
-              "9th Grade",
               "10th Grade",
               "11th Grade",
               "12th Grade"
@@ -646,9 +638,7 @@
                     "gender": {
                       "enum": [
                         "Female",
-                        "Male",
-                        "Non-binary",
-                        "Prefer not to say"
+                        "Male"
                       ],
                       "type": "string"
                     },
@@ -866,9 +856,7 @@
           "gender": {
             "enum": [
               "Female",
-              "Male",
-              "Non-binary",
-              "Prefer not to say"
+              "Male"
             ],
             "type": "string"
           },
@@ -1321,9 +1309,7 @@
           "gender": {
             "enum": [
               "Female",
-              "Male",
-              "Non-binary",
-              "Prefer not to say"
+              "Male"
             ],
             "type": "string"
           },
@@ -1979,10 +1965,38 @@
             "nullable": true,
             "readOnly": true,
             "type": "string"
+          },
+          "video_url_1": {
+            "format": "uri",
+            "maxLength": 200,
+            "pattern": "^(?:[a-z0-9.+-]*)://(?:[^\\s:@/]+(?::[^\\s:@/]*)?@)?(?:(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)(?:\\.(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}|\\[[0-9a-f:.]+\\]|([a-z¡-￿0-9](?:[a-z¡-￿0-9-]{0,61}[a-z¡-￿0-9])?(?:\\.(?!-)[a-z¡-￿0-9-]{1,63}(?<!-))*\\.(?!-)(?:[a-z¡-￿-]{2,63}|xn--[a-z0-9]{1,59})(?<!-)\\.?|localhost))(?::[0-9]{1,5})?(?:[/?#][^\\s]*)?\\z",
+            "type": "string"
+          },
+          "video_url_2": {
+            "format": "uri",
+            "maxLength": 200,
+            "pattern": "^(?:[a-z0-9.+-]*)://(?:[^\\s:@/]+(?::[^\\s:@/]*)?@)?(?:(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)(?:\\.(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}|\\[[0-9a-f:.]+\\]|([a-z¡-￿0-9](?:[a-z¡-￿0-9-]{0,61}[a-z¡-￿0-9])?(?:\\.(?!-)[a-z¡-￿0-9-]{1,63}(?<!-))*\\.(?!-)(?:[a-z¡-￿-]{2,63}|xn--[a-z0-9]{1,59})(?<!-)\\.?|localhost))(?::[0-9]{1,5})?(?:[/?#][^\\s]*)?\\z",
+            "type": "string"
           }
         },
         "required": [
           "title"
+        ],
+        "type": "object"
+      },
+      "TrainingVideoWatch": {
+        "properties": {
+          "mentor_id": {
+            "type": "integer"
+          },
+          "video_index": {
+            "maximum": 2,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "video_index"
         ],
         "type": "object"
       }
@@ -7043,6 +7057,57 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TrainingModule"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/training-modules/{id}/watch-video/": {
+      "post": {
+        "description": "",
+        "operationId": "watchVideoTrainingModulePost",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this training module.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrainingVideoWatch"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/TrainingVideoWatch"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/TrainingVideoWatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingVideoWatch"
                 }
               }
             },

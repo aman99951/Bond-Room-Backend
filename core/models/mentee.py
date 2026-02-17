@@ -3,7 +3,6 @@ from django.db import models
 
 class Mentee(models.Model):
     GRADE_CHOICES = [
-        ('9th Grade', '9th Grade'),
         ('10th Grade', '10th Grade'),
         ('11th Grade', '11th Grade'),
         ('12th Grade', '12th Grade'),
@@ -11,8 +10,6 @@ class Mentee(models.Model):
     GENDER_CHOICES = [
         ('Female', 'Female'),
         ('Male', 'Male'),
-        ('Non-binary', 'Non-binary'),
-        ('Prefer not to say', 'Prefer not to say'),
     ]
 
     first_name = models.CharField(max_length=100)

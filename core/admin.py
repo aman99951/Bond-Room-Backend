@@ -21,6 +21,7 @@ from .models import (
     MentorContactVerification,
     MentorIdentityVerification,
     MentorOnboardingStatus,
+    MentorTrainingQuizAttempt,
     MentorTrainingProgress,
     PayoutTransaction,
     ParentConsentVerification,
@@ -215,9 +216,19 @@ class MentorOnboardingStatusAdmin(admin.ModelAdmin):
 
 @admin.register(TrainingModule)
 class TrainingModuleAdmin(admin.ModelAdmin):
-    list_display = ('title', 'order', 'is_active', 'estimated_minutes')
+    list_display = ('title', 'order', 'video_url_1', 'video_url_2', 'is_active', 'estimated_minutes')
     list_filter = ('is_active',)
     search_fields = ('title',)
+    fields = (
+        'title',
+        'description',
+        'order',
+        'lesson_outline',
+        'video_url_1',
+        'video_url_2',
+        'estimated_minutes',
+        'is_active',
+    )
 
 
 @admin.register(MentorTrainingProgress)
@@ -225,6 +236,22 @@ class MentorTrainingProgressAdmin(admin.ModelAdmin):
     list_display = ('mentor', 'module', 'status', 'progress_percent', 'completed_at')
     list_filter = ('status',)
     search_fields = ('mentor__first_name', 'mentor__last_name', 'mentor__email', 'module__title')
+
+
+@admin.register(MentorTrainingQuizAttempt)
+class MentorTrainingQuizAttemptAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "mentor",
+        "status",
+        "score",
+        "pass_mark",
+        "total_questions",
+        "started_at",
+        "submitted_at",
+    )
+    list_filter = ("status",)
+    search_fields = ("mentor__first_name", "mentor__last_name", "mentor__email")
 
 
 @admin.register(ParentConsentVerification)

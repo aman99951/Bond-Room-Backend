@@ -19,6 +19,7 @@ from .mentor_onboarding import (
     MentorContactVerification,
     MentorIdentityVerification,
     MentorOnboardingStatus,
+    MentorTrainingQuizAttempt,
     MentorTrainingProgress,
     TrainingModule,
 )
@@ -44,6 +45,7 @@ __all__ = [
     'MentorOnboardingStatus',
     'TrainingModule',
     'MentorTrainingProgress',
+    'MentorTrainingQuizAttempt',
     'MenteeRequest',
     'MatchRecommendation',
     'UserProfile',

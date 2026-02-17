@@ -155,6 +155,8 @@ class TrainingModule(models.Model):
     description = models.TextField(blank=True)
     order = models.PositiveSmallIntegerField(default=1)
     lesson_outline = models.JSONField(default=list, blank=True)
+    video_url_1 = models.URLField(blank=True, default="")
+    video_url_2 = models.URLField(blank=True, default="")
     is_active = models.BooleanField(default=True)
     estimated_minutes = models.PositiveSmallIntegerField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
@@ -190,3 +192,30 @@ class MentorTrainingProgress(models.Model):
 
     def __str__(self) -> str:
         return f"{self.mentor_id} - {self.module.title}"
+
+
+class MentorTrainingQuizAttempt(models.Model):
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("passed", "Passed"),
+        ("failed", "Failed"),
+    ]
+
+    mentor = models.ForeignKey(
+        Mentor, on_delete=models.CASCADE, related_name="training_quiz_attempts"
+    )
+    total_questions = models.PositiveSmallIntegerField(default=15)
+    pass_mark = models.PositiveSmallIntegerField(default=7)
+    questions = models.JSONField(default=list, blank=True)
+    selected_answers = models.JSONField(default=list, blank=True)
+    score = models.PositiveSmallIntegerField(default=0)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
+    started_at = models.DateTimeField(auto_now_add=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
+
+    class Meta:
+        ordering = ["-started_at", "-id"]
+
+    def __str__(self) -> str:
+        return f"Mentor {self.mentor_id} quiz attempt #{self.id} ({self.status})"

@@ -15,6 +15,7 @@ from .models import (
     MentorIdentityVerification,
     MentorOnboardingStatus,
     MentorProfile,
+    MentorTrainingQuizAttempt,
     MentorTrainingProgress,
     MentorWallet,
     Mentee,
@@ -163,10 +164,40 @@ class TrainingModuleSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
+class TrainingVideoWatchSerializer(serializers.Serializer):
+    mentor_id = serializers.IntegerField(required=False)
+    video_index = serializers.IntegerField(min_value=1, max_value=2)
+
+
 class MentorTrainingProgressSerializer(serializers.ModelSerializer):
     class Meta:
         model = MentorTrainingProgress
         fields = "__all__"
+
+
+class MentorTrainingQuizAttemptSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MentorTrainingQuizAttempt
+        fields = "__all__"
+
+
+class TrainingQuizStartSerializer(serializers.Serializer):
+    mentor_id = serializers.IntegerField(required=False)
+
+
+class TrainingQuizSubmitSerializer(serializers.Serializer):
+    mentor_id = serializers.IntegerField(required=False)
+    attempt_id = serializers.IntegerField(required=True)
+    selected_answers = serializers.ListField(
+        child=serializers.IntegerField(min_value=0, max_value=3),
+        allow_empty=False,
+        required=True,
+    )
+
+
+class TrainingQuizAbandonSerializer(serializers.Serializer):
+    mentor_id = serializers.IntegerField(required=False)
+    attempt_id = serializers.IntegerField(required=True)
 
 
 class MentorProfileSerializer(serializers.ModelSerializer):

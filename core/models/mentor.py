@@ -5,8 +5,6 @@ class Mentor(models.Model):
     GENDER_CHOICES = [
         ('Female', 'Female'),
         ('Male', 'Male'),
-        ('Non-binary', 'Non-binary'),
-        ('Prefer not to say', 'Prefer not to say'),
     ]
     LANGUAGE_CHOICES = [
         ('Tamil', 'Tamil'),

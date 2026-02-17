@@ -141,9 +141,9 @@ DATABASES = {
 }'''
 
 # Database configuration:
-# - Require a Postgres URL from environment.
-# - Supports both explicit DATABASE_URL and Vercel Postgres variables.
-# - Use conn_max_age=0 by default for pooled/serverless Postgres to avoid stale connections.
+# - Supports DATABASE_URL (including sqlite:///... for local usage).
+# - Also supports Vercel Postgres variables.
+# - Applies SSL/keepalive options only to Postgres engines.
 USE_SQLITE_FOR_TESTS = os.environ.get("USE_SQLITE_FOR_TESTS", "").strip().lower() in {"1", "true", "yes"}
 
 if USE_SQLITE_FOR_TESTS:
@@ -166,10 +166,7 @@ else:
     db_sslmode = os.environ.get('DB_SSLMODE', 'require')
 
     if not database_url:
-        raise RuntimeError(
-            "Postgres URL is required. Set DATABASE_URL (or POSTGRES_URL on Vercel). "
-            "SQLite fallback has been removed."
-        )
+        raise RuntimeError("Database URL is required. Set DATABASE_URL (or POSTGRES_URL on Vercel).")
 
     if 'channel_binding=require' in database_url:
         database_url = database_url.replace('channel_binding=require', 'channel_binding=prefer')
@@ -182,18 +179,19 @@ else:
         )
     except Exception as exc:
         raise RuntimeError(
-            "Invalid Postgres URL in DATABASE_URL/POSTGRES_URL. "
-            "If copied from psql, use only the raw postgresql:// URL."
+            "Invalid database URL in DATABASE_URL/POSTGRES_URL."
         ) from exc
 
     DATABASES = {'default': parsed_database}
-    DATABASES['default'].setdefault('OPTIONS', {})
-    DATABASES['default']['OPTIONS'].setdefault('sslmode', db_sslmode)
-    DATABASES['default']['OPTIONS'].setdefault('connect_timeout', db_connect_timeout)
-    DATABASES['default']['OPTIONS'].setdefault('keepalives', 1)
-    DATABASES['default']['OPTIONS'].setdefault('keepalives_idle', 30)
-    DATABASES['default']['OPTIONS'].setdefault('keepalives_interval', 10)
-    DATABASES['default']['OPTIONS'].setdefault('keepalives_count', 5)
+    db_engine = (DATABASES["default"].get("ENGINE") or "").lower()
+    if "postgresql" in db_engine:
+        DATABASES['default'].setdefault('OPTIONS', {})
+        DATABASES['default']['OPTIONS'].setdefault('sslmode', db_sslmode)
+        DATABASES['default']['OPTIONS'].setdefault('connect_timeout', db_connect_timeout)
+        DATABASES['default']['OPTIONS'].setdefault('keepalives', 1)
+        DATABASES['default']['OPTIONS'].setdefault('keepalives_idle', 30)
+        DATABASES['default']['OPTIONS'].setdefault('keepalives_interval', 10)
+        DATABASES['default']['OPTIONS'].setdefault('keepalives_count', 5)
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -317,6 +315,7 @@ SIMPLE_JWT = {
 }
 
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
+MENTOR_TEST_OTP = os.environ.get("MENTOR_TEST_OTP", "").strip()
 
 cors_allowed_origins_env = os.environ.get(
     "CORS_ALLOWED_ORIGINS",

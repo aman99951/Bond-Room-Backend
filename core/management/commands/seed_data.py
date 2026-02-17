@@ -36,8 +36,8 @@ class Command(BaseCommand):
 
         first_names = ["Priya", "Rahul", "Ananya", "Karthik", "Meera", "Arjun", "Nila", "Vikram"]
         last_names = ["Sharma", "Iyer", "Patel", "Rao", "Menon", "Gupta", "Nair", "Singh"]
-        grades = ["9th Grade", "10th Grade", "11th Grade", "12th Grade"]
-        genders = ["Female", "Male", "Non-binary", "Prefer not to say"]
+        grades = ["10th Grade", "11th Grade", "12th Grade"]
+        genders = ["Female", "Male"]
         languages = ["Tamil", "English", "Telugu", "Kannada"]
         care_areas = ["Anxiety", "Relationships", "Academic Stress"]
         topics = ["Anxiety", "Study Skills", "Math", "Career Chat", "Academic Stress"]

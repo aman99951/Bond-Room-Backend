@@ -5,11 +5,18 @@ import urllib.error
 import urllib.request
 
 from django.conf import settings
-from django.db.models.signals import post_save
+from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 
 from .matching_logic import filter_mentors, score_mentors
-from .models import MatchRecommendation, MenteeRequest, Mentor
+from .models import (
+    MatchRecommendation,
+    MenteeRequest,
+    Mentor,
+    MentorTrainingProgress,
+    MentorTrainingQuizAttempt,
+)
+from .onboarding import sync_mentor_onboarding_training_status
 
 
 def _get_max_int(env_key: str, default: int) -> int:
@@ -187,3 +194,35 @@ def auto_recommend_on_request(sender, instance: MenteeRequest, created: bool, **
     if not created:
         return
     generate_recommendations_for_request(instance)
+
+
+@receiver(post_save, sender=MentorTrainingProgress)
+def auto_sync_training_status_on_progress_save(
+    sender, instance: MentorTrainingProgress, **kwargs
+):
+    if kwargs.get("raw"):
+        return
+    sync_mentor_onboarding_training_status(instance.mentor_id)
+
+
+@receiver(post_delete, sender=MentorTrainingProgress)
+def auto_sync_training_status_on_progress_delete(
+    sender, instance: MentorTrainingProgress, **kwargs
+):
+    sync_mentor_onboarding_training_status(instance.mentor_id)
+
+
+@receiver(post_save, sender=MentorTrainingQuizAttempt)
+def auto_sync_training_status_on_quiz_save(
+    sender, instance: MentorTrainingQuizAttempt, **kwargs
+):
+    if kwargs.get("raw"):
+        return
+    sync_mentor_onboarding_training_status(instance.mentor_id)
+
+
+@receiver(post_delete, sender=MentorTrainingQuizAttempt)
+def auto_sync_training_status_on_quiz_delete(
+    sender, instance: MentorTrainingQuizAttempt, **kwargs
+):
+    sync_mentor_onboarding_training_status(instance.mentor_id)
