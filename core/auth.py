@@ -5,11 +5,12 @@ from rest_framework_simplejwt.settings import api_settings
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from .models import UserProfile
+from .models import AdminAccount, UserProfile
 
 
 class BondRoomTokenObtainPairSerializer(TokenObtainPairSerializer):
     password = serializers.CharField(write_only=True)
+    allow_admin_login = False
 
     default_error_messages = {
         "no_active_account": "No active account found with the given credentials",
@@ -24,12 +25,19 @@ class BondRoomTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
-        try:
-            token['role'] = user.userprofile.role
-        except UserProfile.DoesNotExist:
-            token['role'] = None
+        token['role'] = cls.get_user_role(user)
         token['email'] = user.email
         return token
+
+    @staticmethod
+    def get_user_role(user):
+        try:
+            return user.userprofile.role
+        except UserProfile.DoesNotExist:
+            pass
+        if AdminAccount.objects.filter(user=user).exists():
+            return "admin"
+        return None
 
     def validate(self, attrs):
         email = attrs.get("email", "").strip().lower()
@@ -57,6 +65,18 @@ class BondRoomTokenObtainPairSerializer(TokenObtainPairSerializer):
                 "no_active_account",
             )
 
+        role = self.get_user_role(self.user)
+        if role == "admin" and not self.allow_admin_login:
+            raise exceptions.AuthenticationFailed(
+                "Admin accounts can login only from the admin portal.",
+                "admin_login_not_allowed",
+            )
+        if self.allow_admin_login and role != "admin":
+            raise exceptions.AuthenticationFailed(
+                "Only admin accounts can login here.",
+                "admin_only_login",
+            )
+
         refresh = self.get_token(self.user)
         data = {
             "refresh": str(refresh),
@@ -71,3 +91,11 @@ class BondRoomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
 class BondRoomTokenObtainPairView(TokenObtainPairView):
     serializer_class = BondRoomTokenObtainPairSerializer
+
+
+class BondRoomAdminTokenObtainPairSerializer(BondRoomTokenObtainPairSerializer):
+    allow_admin_login = True
+
+
+class BondRoomAdminTokenObtainPairView(TokenObtainPairView):
+    serializer_class = BondRoomAdminTokenObtainPairSerializer

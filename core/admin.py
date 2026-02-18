@@ -4,11 +4,15 @@ import os
 import urllib.error
 import urllib.request
 
+from django import forms
 from django.conf import settings
 from django.contrib import admin, messages
+from django.contrib.auth import get_user_model
+from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
 from .matching_logic import filter_mentors, score_mentors
 from .models import (
+    AdminAccount,
     DonationTransaction,
     MatchRecommendation,
     MentorAvailabilitySlot,
@@ -32,6 +36,151 @@ from .models import (
     TrainingModule,
     UserProfile,
 )
+
+User = get_user_model()
+
+
+def ensure_username(base: str) -> str:
+    base = (base or "admin").strip().lower().replace(" ", "_")
+    candidate = base
+    index = 1
+    while User.objects.filter(username=candidate).exists():
+        index += 1
+        candidate = f"{base}_{index}"
+    return candidate
+
+
+class UserProfileInline(admin.StackedInline):
+    model = UserProfile
+    can_delete = False
+    extra = 0
+    max_num = 1
+
+
+class AppUserAdmin(DjangoUserAdmin):
+    inlines = (UserProfileInline,)
+    list_display = DjangoUserAdmin.list_display + ('profile_role',)
+    actions = ('mark_as_admin_role',)
+
+    @admin.display(description='Role')
+    def profile_role(self, obj):
+        return getattr(getattr(obj, 'userprofile', None), 'role', '-')
+
+    @admin.action(description='Set selected users role as admin')
+    def mark_as_admin_role(self, request, queryset):
+        updated_count = 0
+        for user in queryset:
+            UserProfile.objects.update_or_create(
+                user=user,
+                defaults={'role': 'admin'},
+            )
+            updated_count += 1
+        self.message_user(
+            request,
+            f'{updated_count} user(s) updated with admin role.',
+            level=messages.SUCCESS,
+        )
+
+
+try:
+    admin.site.unregister(User)
+except admin.sites.NotRegistered:
+    pass
+admin.site.register(User, AppUserAdmin)
+
+
+class AdminAccountAdminForm(forms.ModelForm):
+    email = forms.EmailField(label="Email")
+    first_name = forms.CharField(max_length=150, label="First name")
+    last_name = forms.CharField(max_length=150, required=False, label="Last name")
+    password = forms.CharField(
+        required=False,
+        widget=forms.PasswordInput(render_value=False),
+        help_text="Required for new admin accounts. Leave blank to keep existing password.",
+    )
+
+    class Meta:
+        model = AdminAccount
+        fields = ("email", "first_name", "last_name", "mobile", "password")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk and self.instance.user_id:
+            self.fields["email"].initial = self.instance.user.email
+            self.fields["first_name"].initial = self.instance.user.first_name
+            self.fields["last_name"].initial = self.instance.user.last_name
+
+    def clean_email(self):
+        email = self.cleaned_data.get("email", "").strip().lower()
+        existing = User.objects.filter(email__iexact=email)
+        if self.instance and self.instance.pk and self.instance.user_id:
+            existing = existing.exclude(pk=self.instance.user_id)
+        if existing.exists():
+            raise forms.ValidationError("A user with this email already exists.")
+        return email
+
+    def clean_password(self):
+        password = self.cleaned_data.get("password", "")
+        if not self.instance.pk and not password:
+            raise forms.ValidationError("Password is required for a new admin account.")
+        return password
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        email = self.cleaned_data["email"]
+        first_name = self.cleaned_data["first_name"].strip()
+        last_name = self.cleaned_data.get("last_name", "").strip()
+        password = self.cleaned_data.get("password", "")
+
+        if instance.pk and instance.user_id:
+            user = instance.user
+            user.email = email
+            user.first_name = first_name
+            user.last_name = last_name
+            user.is_active = True
+        else:
+            user = User(
+                username=ensure_username(email.split("@")[0]),
+                email=email,
+                first_name=first_name,
+                last_name=last_name,
+                is_active=True,
+            )
+
+        if password:
+            user.set_password(password)
+        user.save()
+
+        instance.user = user
+        if commit:
+            instance.save()
+            UserProfile.objects.update_or_create(user=user, defaults={"role": "admin"})
+        return instance
+
+
+@admin.register(AdminAccount)
+class AdminAccountAdmin(admin.ModelAdmin):
+    form = AdminAccountAdminForm
+    list_display = ("id", "email_display", "name_display", "mobile", "created_at")
+    search_fields = ("user__email", "user__first_name", "user__last_name", "mobile")
+    readonly_fields = ("created_at", "updated_at")
+    fields = (
+        "email",
+        "first_name",
+        "last_name",
+        "mobile",
+        "password",
+        "created_at",
+        "updated_at",
+    )
+
+    @admin.display(description="Email")
+    def email_display(self, obj):
+        return obj.user.email
+
+    @admin.display(description="Name")
+    def name_display(self, obj):
+        return f"{obj.user.first_name} {obj.user.last_name}".strip() or "-"
 
 
 @admin.register(Mentee)

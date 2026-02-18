@@ -24,6 +24,7 @@ from .mentor_onboarding import (
     TrainingModule,
 )
 from .matching import MatchRecommendation, MenteeRequest
+from .admin_account import AdminAccount
 from .user_profile import UserProfile
 
 __all__ = [
@@ -48,5 +49,6 @@ __all__ = [
     'MentorTrainingQuizAttempt',
     'MenteeRequest',
     'MatchRecommendation',
+    'AdminAccount',
     'UserProfile',
 ]

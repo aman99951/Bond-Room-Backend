@@ -1,4 +1,5 @@
 from rest_framework.permissions import BasePermission
+from .models import AdminAccount
 
 
 ROLE_ADMIN = "admin"
@@ -15,7 +16,10 @@ def user_role(user):
     try:
         return user.userprofile.role
     except Exception:
-        return None
+        pass
+    if AdminAccount.objects.filter(user=user).exists():
+        return ROLE_ADMIN
+    return None
 
 
 class IsAuthenticatedWithAppRole(BasePermission):

@@ -37,6 +37,7 @@ from core.schema import PUBLIC_PATHS
 
 
 POST_ONLY_PUBLIC_PATHS = {
+    "/api/admin/login/",
     "/api/auth/mentor-contact/send-otp/",
     "/api/auth/mentor-contact/verify-otp/",
     "/api/auth/parent-consent/send-otp/",
@@ -364,7 +365,7 @@ class ApiAutomationCoverageTests(APITestCase):
             return self._refresh_token
         self._clear_authentication()
         response = self.client.post(
-            "/api/login/",
+            "/api/admin/login/",
             {"email": self.admin_user.email, "password": self.admin_password},
             format="json",
         )
@@ -431,6 +432,8 @@ class ApiAutomationCoverageTests(APITestCase):
             self.assertEqual(send.status_code, 200, send.data)
             return {"mentor_id": self.mentor.id, "channel": "email", "otp": send.data["otp"]}
         if schema_path == "/api/login/":
+            return {"email": self.mentee_user.email, "password": self.mentee_password}
+        if schema_path == "/api/admin/login/":
             return {"email": self.admin_user.email, "password": self.admin_password}
         if schema_path == "/api/token/refresh/":
             return {"refresh": self._post_login_and_get_refresh()}
@@ -505,7 +508,9 @@ class ApiAutomationCoverageTests(APITestCase):
         if schema_path == "/api/schema/":
             return "POST", "/api/schema/", {}, {405}
         if schema_path == "/api/login/":
-            return "POST", "/api/login/", {"email": self.admin_user.email, "password": "wrong-pass"}, {401}
+            return "POST", "/api/login/", {"email": self.admin_user.email, "password": self.admin_password}, {401}
+        if schema_path == "/api/admin/login/":
+            return "POST", "/api/admin/login/", {"email": self.admin_user.email, "password": "wrong-pass"}, {401}
         if schema_path == "/api/token/refresh/":
             return "POST", "/api/token/refresh/", {"refresh": "invalid-token"}, {401}
         if schema_path == "/api/auth/register/admin/":

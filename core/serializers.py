@@ -9,6 +9,7 @@ from rest_framework import serializers
 from .models import (
     DonationTransaction,
     MatchRecommendation,
+    AdminAccount,
     Mentor,
     MentorAvailabilitySlot,
     MentorContactVerification,
@@ -367,6 +368,10 @@ class AdminRegisterSerializer(serializers.Serializer):
         user.save(update_fields=["first_name", "last_name", "is_active", "password"])
 
         UserProfile.objects.update_or_create(user=user, defaults={"role": "admin"})
+        AdminAccount.objects.update_or_create(
+            user=user,
+            defaults={"mobile": validated_data.get("mobile", "").strip()},
+        )
         return user
 
     def to_representation(self, instance):

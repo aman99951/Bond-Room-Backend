@@ -14,6 +14,7 @@ class BondRoomAutoSchema(AutoSchema):
 
 PUBLIC_PATHS = {
     "/api/login/",
+    "/api/admin/login/",
     "/api/token/refresh/",
     "/api/auth/register/admin/",
     "/api/auth/register/mentee/",
@@ -36,7 +37,12 @@ TAG_ORDER = {
 
 
 def tag_for_path(path: str) -> str:
-    if path.startswith("/api/login/") or path.startswith("/api/token/") or path.startswith("/api/auth/"):
+    if (
+        path.startswith("/api/login/")
+        or path.startswith("/api/admin/login/")
+        or path.startswith("/api/token/")
+        or path.startswith("/api/auth/")
+    ):
         return "Auth"
     if path.startswith("/api/mentees/"):
         return "Mentee Role"

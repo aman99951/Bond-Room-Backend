@@ -34,6 +34,24 @@
         ],
         "type": "object"
       },
+      "BondRoomAdminTokenObtainPair": {
+        "properties": {
+          "email": {
+            "format": "email",
+            "type": "string",
+            "writeOnly": true
+          },
+          "password": {
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "password",
+          "email"
+        ],
+        "type": "object"
+      },
       "BondRoomTokenObtainPair": {
         "properties": {
           "email": {
@@ -1984,6 +2002,50 @@
         ],
         "type": "object"
       },
+      "TrainingQuizAbandon": {
+        "properties": {
+          "attempt_id": {
+            "type": "integer"
+          },
+          "mentor_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "attempt_id"
+        ],
+        "type": "object"
+      },
+      "TrainingQuizStart": {
+        "properties": {
+          "mentor_id": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "TrainingQuizSubmit": {
+        "properties": {
+          "attempt_id": {
+            "type": "integer"
+          },
+          "mentor_id": {
+            "type": "integer"
+          },
+          "selected_answers": {
+            "items": {
+              "maximum": 3,
+              "type": "integer"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "attempt_id",
+          "selected_answers"
+        ],
+        "type": "object"
+      },
       "TrainingVideoWatch": {
         "properties": {
           "mentor_id": {
@@ -2009,6 +2071,47 @@
   },
   "openapi": "3.0.2",
   "paths": {
+    "/api/admin/login/": {
+      "post": {
+        "description": "",
+        "operationId": "createBondRoomAdminTokenObtainPairPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BondRoomAdminTokenObtainPair"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/BondRoomAdminTokenObtainPair"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/BondRoomAdminTokenObtainPair"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BondRoomAdminTokenObtainPair"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
     "/api/auth/logout/": {
       "post": {
         "description": "",
@@ -7025,6 +7128,151 @@
                     "$ref": "#/components/schemas/TrainingModule"
                   },
                   "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/training-modules/quiz/": {
+      "get": {
+        "description": "",
+        "operationId": "quizStatusTrainingModuleGet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingModule"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/training-modules/quiz/abandon/": {
+      "post": {
+        "description": "",
+        "operationId": "quizAbandonTrainingModulePost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrainingQuizAbandon"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/TrainingQuizAbandon"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/TrainingQuizAbandon"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingQuizAbandon"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/training-modules/quiz/start/": {
+      "post": {
+        "description": "",
+        "operationId": "quizStartTrainingModulePost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrainingQuizStart"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/TrainingQuizStart"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/TrainingQuizStart"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingQuizStart"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/training-modules/quiz/submit/": {
+      "post": {
+        "description": "",
+        "operationId": "quizSubmitTrainingModulePost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrainingQuizSubmit"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/TrainingQuizSubmit"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/TrainingQuizSubmit"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingQuizSubmit"
                 }
               }
             },

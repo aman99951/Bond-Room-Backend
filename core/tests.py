@@ -4,7 +4,7 @@ from unittest.mock import patch
 from django.test import TestCase
 from rest_framework.test import APITestCase
 
-from core.models import Mentor, MentorOnboardingStatus, TrainingModule, UserProfile
+from core.models import AdminAccount, Mentor, MentorOnboardingStatus, TrainingModule, UserProfile
 from django.contrib.auth import get_user_model
 
 
@@ -31,6 +31,126 @@ class MentorOnboardingStatusTests(TestCase):
 
         onboarding.refresh_from_db()
         self.assertEqual(onboarding.current_status, "completed")
+
+
+class RoleBasedLoginRouteTests(APITestCase):
+    @classmethod
+    def setUpTestData(cls):
+        User = get_user_model()
+        cls.admin_password = "AdminPass123!"
+        cls.mentee_password = "MenteePass123!"
+
+        cls.admin_user = User.objects.create_user(
+            username="admin_login_route_test",
+            email="admin.login.route@test.com",
+            password=cls.admin_password,
+        )
+        cls.mentee_user = User.objects.create_user(
+            username="mentee_login_route_test",
+            email="mentee.login.route@test.com",
+            password=cls.mentee_password,
+        )
+        UserProfile.objects.create(user=cls.admin_user, role="admin")
+        UserProfile.objects.create(user=cls.mentee_user, role="mentee")
+
+    def test_standard_login_rejects_admin_role(self):
+        response = self.client.post(
+            "/api/login/",
+            {"email": self.admin_user.email, "password": self.admin_password},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 401)
+
+    def test_admin_login_accepts_admin_role(self):
+        response = self.client.post(
+            "/api/admin/login/",
+            {"email": self.admin_user.email, "password": self.admin_password},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("access", response.data)
+        self.assertIn("refresh", response.data)
+
+    def test_admin_login_rejects_non_admin_role(self):
+        response = self.client.post(
+            "/api/admin/login/",
+            {"email": self.mentee_user.email, "password": self.mentee_password},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 401)
+
+    def test_admin_account_without_user_profile_can_login_on_admin_route(self):
+        User = get_user_model()
+        password = "AdminPass123!"
+        user = User.objects.create_user(
+            username="admin_account_only_user",
+            email="admin.account.only@test.com",
+            password=password,
+        )
+        AdminAccount.objects.create(user=user, mobile="+10000000098")
+
+        response = self.client.post(
+            "/api/admin/login/",
+            {"email": user.email, "password": password},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("access", response.data)
+
+    def test_admin_account_without_user_profile_can_access_protected_route(self):
+        User = get_user_model()
+        password = "AdminPass123!"
+        user = User.objects.create_user(
+            username="admin_account_only_user_protected",
+            email="admin.account.only.protected@test.com",
+            password=password,
+        )
+        AdminAccount.objects.create(user=user, mobile="+10000000096")
+
+        login_response = self.client.post(
+            "/api/admin/login/",
+            {"email": user.email, "password": password},
+            format="json",
+        )
+        self.assertEqual(login_response.status_code, 200)
+
+        access = login_response.data.get("access")
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
+        protected_response = self.client.post("/api/auth/logout/", {}, format="json")
+        self.assertEqual(protected_response.status_code, 200)
+
+    def test_admin_account_without_user_profile_is_blocked_on_standard_login(self):
+        User = get_user_model()
+        password = "AdminPass123!"
+        user = User.objects.create_user(
+            username="admin_account_only_user_blocked",
+            email="admin.account.only.blocked@test.com",
+            password=password,
+        )
+        AdminAccount.objects.create(user=user, mobile="+10000000097")
+
+        response = self.client.post(
+            "/api/login/",
+            {"email": user.email, "password": password},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 401)
+
+    def test_admin_register_sets_admin_role(self):
+        payload = {
+            "first_name": "New",
+            "last_name": "Admin",
+            "email": "new.admin.route@test.com",
+            "mobile": "+10000000099",
+            "password": "AdminPass123!",
+        }
+        response = self.client.post("/api/auth/register/admin/", payload, format="json")
+        self.assertEqual(response.status_code, 201)
+        User = get_user_model()
+        created_user = User.objects.get(email=payload["email"])
+        profile = UserProfile.objects.get(user=created_user)
+        self.assertEqual(profile.role, "admin")
+        self.assertTrue(AdminAccount.objects.filter(user=created_user).exists())
 
 
 class TrainingModuleVideoWorkflowTests(APITestCase):
