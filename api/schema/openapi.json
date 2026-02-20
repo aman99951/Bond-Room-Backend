@@ -1182,15 +1182,6 @@
             ],
             "type": "string"
           },
-          "final_approval_status": {
-            "enum": [
-              "pending",
-              "in_review",
-              "completed",
-              "rejected"
-            ],
-            "type": "string"
-          },
           "final_rejection_reason": {
             "type": "string"
           },
@@ -6096,6 +6087,57 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutTransaction"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/payout-transactions/{id}/mark-paid/": {
+      "post": {
+        "description": "",
+        "operationId": "markPaidPayoutTransactionPost",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this payout transaction.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutTransaction"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutTransaction"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutTransaction"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
