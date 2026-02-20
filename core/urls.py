@@ -4,6 +4,8 @@ from rest_framework.routers import DefaultRouter
 from .api_views import (
     AdminRegisterView,
     DonationTransactionViewSet,
+    LocationCitiesView,
+    LocationStatesView,
     LogoutView,
     MatchRecommendationViewSet,
     MentorAvailabilitySlotViewSet,
@@ -21,6 +23,7 @@ from .api_views import (
     MenteeRegisterView,
     MenteeRequestViewSet,
     MenteeViewSet,
+    MobileLoginOtpVerifyView,
     ParentConsentSendOtpView,
     ParentConsentVerificationViewSet,
     ParentConsentVerifyOtpView,
@@ -56,6 +59,9 @@ router.register(r"session-issue-reports", SessionIssueReportViewSet, basename="s
 
 
 urlpatterns = [
+    path("locations/states/", LocationStatesView.as_view(), name="location-states"),
+    path("locations/cities/", LocationCitiesView.as_view(), name="location-cities"),
+    path("auth/mobile-login/verify-otp/", MobileLoginOtpVerifyView.as_view(), name="mobile-login-verify-otp"),
     path("auth/register/admin/", AdminRegisterView.as_view(), name="register-admin"),
     path("auth/register/mentee/", MenteeRegisterView.as_view(), name="register-mentee"),
     path("auth/register/mentor/", MentorRegisterView.as_view(), name="register-mentor"),

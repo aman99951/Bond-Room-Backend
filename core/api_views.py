@@ -1,9 +1,11 @@
 from decimal import Decimal
 import re
 
+from django.contrib.auth import get_user_model
 from django.conf import settings
 from django.db import transaction
 from django.db.models import Avg, Count, Q, Sum
+from django.contrib.auth.models import update_last_login
 from django.utils import timezone
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
@@ -12,8 +14,12 @@ from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.settings import api_settings
+from rest_framework_simplejwt.tokens import RefreshToken
 
+from .location_catalog import get_cities_for_state, get_states
 from .models import (
+    AdminAccount,
     DonationTransaction,
     MatchRecommendation,
     Mentor,
@@ -35,6 +41,7 @@ from .models import (
     SessionFeedback,
     SessionIssueReport,
     TrainingModule,
+    UserProfile,
 )
 from .onboarding import (
     sync_mentor_onboarding_training_status,
@@ -65,6 +72,7 @@ from .serializers import (
     MentorSerializer,
     MentorTrainingProgressSerializer,
     MentorWalletSerializer,
+    MobileLoginOtpVerifySerializer,
     MenteePreferencesSerializer,
     MenteeRegisterSerializer,
     MenteeRequestSerializer,
@@ -87,11 +95,16 @@ from .serializers import (
     hash_otp,
     otp_expiry,
 )
-from .quiz import evaluate_quiz_attempt, generate_training_quiz_questions
+from .quiz import (
+    clean_question_text,
+    evaluate_quiz_attempt,
+    generate_training_quiz_questions,
+)
 from .zoom import maybe_attach_zoom_links, zoom_is_configured
 from .signals import generate_recommendations_for_request
 
 TRAINING_QUIZ_PASS_MARK = 7
+User = get_user_model()
 
 
 def current_mentee_id(request):
@@ -115,6 +128,55 @@ def require_role(request, allowed_roles):
 def deny_if_mentee_mutation(request):
     if user_role(request.user) == ROLE_MENTEE:
         raise PermissionDenied("Mentee users have read-only access for this endpoint.")
+
+
+def normalize_mobile(value):
+    return "".join(ch for ch in str(value or "") if ch.isdigit())
+
+
+def get_user_role_value(user):
+    profile = UserProfile.objects.filter(user=user).first()
+    if profile and profile.role:
+        return profile.role
+    if AdminAccount.objects.filter(user=user).exists():
+        return "admin"
+    return ""
+
+
+def build_auth_token_payload(user):
+    role = get_user_role_value(user)
+    refresh = RefreshToken.for_user(user)
+    refresh["role"] = role
+    refresh["email"] = user.email
+    access = refresh.access_token
+    access["role"] = role
+    access["email"] = user.email
+    if api_settings.UPDATE_LAST_LOGIN:
+        update_last_login(None, user)
+    return {
+        "refresh": str(refresh),
+        "access": str(access),
+    }
+
+
+def find_mentor_by_mobile(mobile_value):
+    normalized = normalize_mobile(mobile_value)
+    if not normalized:
+        return None
+    for mentor in Mentor.objects.all().order_by("-id").only("id", "email", "mobile"):
+        if normalize_mobile(mentor.mobile) == normalized:
+            return mentor
+    return None
+
+
+def find_mentee_by_mobile(mobile_value):
+    normalized = normalize_mobile(mobile_value)
+    if not normalized:
+        return None
+    for mentee in Mentee.objects.all().order_by("-id").only("id", "email", "parent_mobile"):
+        if normalize_mobile(mentee.parent_mobile) == normalized:
+            return mentee
+    return None
 
 
 def build_module_video_payload(module):
@@ -214,6 +276,19 @@ def sanitize_quiz_questions_for_client(questions):
     return sanitized
 
 
+def quiz_questions_signature(questions):
+    signature = []
+    for item in questions or []:
+        question_text = clean_question_text(item.get("question", "")).lower()
+        options = item.get("options")
+        options_key = ()
+        if isinstance(options, list):
+            options_key = tuple(str(option).strip().lower() for option in options[:4])
+        module_title = str(item.get("module_title", "")).strip().lower()
+        signature.append((question_text, options_key, module_title))
+    return tuple(sorted(signature))
+
+
 def build_training_quiz_summary(mentor):
     latest_attempt = (
         MentorTrainingQuizAttempt.objects.filter(mentor=mentor)
@@ -289,6 +364,86 @@ class AdminRegisterView(GenericAPIView):
         serializer.is_valid(raise_exception=True)
         admin_user = serializer.save()
         return Response(serializer.to_representation(admin_user), status=status.HTTP_201_CREATED)
+
+
+class LocationStatesView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def get(self, _request):
+        return Response({"states": get_states()})
+
+
+class LocationCitiesView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def get(self, request):
+        state_name = str(request.query_params.get("state", "")).strip()
+        if not state_name:
+            return Response(
+                {"detail": "Query parameter 'state' is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        canonical_state, cities = get_cities_for_state(state_name)
+        if not canonical_state:
+            return Response({"detail": "State not found."}, status=status.HTTP_404_NOT_FOUND)
+        return Response({"state": canonical_state, "cities": cities})
+
+
+class MobileLoginOtpVerifyView(GenericAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = MobileLoginOtpVerifySerializer
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        otp = str(serializer.validated_data.get("otp", "")).strip()
+        expected_otp = (getattr(settings, "MOCK_LOGIN_OTP", "") or "123456").strip()
+        if otp != expected_otp:
+            return Response({"detail": "Invalid OTP."}, status=status.HTTP_400_BAD_REQUEST)
+
+        mobile = str(serializer.validated_data.get("mobile", "")).strip()
+        role = serializer.validated_data.get("role")
+
+        if role == "mentor":
+            mentor = find_mentor_by_mobile(mobile)
+            if not mentor:
+                return Response({"detail": "No mentor account found for this mobile."}, status=status.HTTP_404_NOT_FOUND)
+            user = User.objects.filter(email=mentor.email).first()
+            if not user:
+                return Response({"detail": "Linked user account not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(build_auth_token_payload(user))
+
+        if role == "mentee":
+            mentee = find_mentee_by_mobile(mobile)
+            if not mentee:
+                return Response({"detail": "No mentee account found for this mobile."}, status=status.HTTP_404_NOT_FOUND)
+            user = User.objects.filter(email=mentee.email).first()
+            if not user:
+                return Response({"detail": "Linked user account not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(build_auth_token_payload(user))
+
+        mentor = find_mentor_by_mobile(mobile)
+        mentee = find_mentee_by_mobile(mobile)
+        if mentor and mentee:
+            return Response(
+                {"detail": "This mobile is linked to multiple roles. Please select role."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if mentor:
+            user = User.objects.filter(email=mentor.email).first()
+            if not user:
+                return Response({"detail": "Linked user account not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(build_auth_token_payload(user))
+        if mentee:
+            user = User.objects.filter(email=mentee.email).first()
+            if not user:
+                return Response({"detail": "Linked user account not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(build_auth_token_payload(user))
+        return Response({"detail": "No account found for this mobile."}, status=status.HTTP_404_NOT_FOUND)
 
 
 class ParentConsentSendOtpView(GenericAPIView):
@@ -613,6 +768,45 @@ class MentorViewSet(viewsets.ModelViewSet):
             return Response(serializer.data)
         return Response(MentorProfileSerializer(profile).data)
 
+    @action(detail=True, methods=["get"], url_path="reviews")
+    def reviews(self, request, pk=None):
+        require_role(request, {ROLE_MENTEE, ROLE_MENTOR, ROLE_ADMIN})
+        mentor = self.get_object()
+        role = user_role(request.user)
+        if role == ROLE_MENTOR and mentor.id != current_mentor_id(request):
+            raise PermissionDenied("You can only view reviews for your own profile.")
+
+        feedback_qs = (
+            SessionFeedback.objects.filter(session__mentor=mentor)
+            .select_related("session")
+            .order_by("-submitted_at", "-id")
+        )
+        summary = feedback_qs.aggregate(
+            average_rating=Avg("rating"),
+            total_reviews=Count("id"),
+        )
+        recent_feedback = [
+            {
+                "id": item.id,
+                "session_id": item.session_id,
+                "rating": item.rating,
+                "comments": item.comments or "",
+                "topics_discussed": item.topics_discussed or [],
+                "submitted_at": item.submitted_at,
+            }
+            for item in feedback_qs[:25]
+        ]
+        return Response(
+            {
+                "mentor_id": mentor.id,
+                "summary": {
+                    "average_rating": round(summary["average_rating"] or 0, 2),
+                    "total_reviews": int(summary["total_reviews"] or 0),
+                },
+                "recent_feedback": recent_feedback,
+            }
+        )
+
     @action(detail=True, methods=["get"], url_path="impact-dashboard")
     def impact_dashboard(self, request, pk=None):
         require_role(request, {ROLE_MENTOR, ROLE_ADMIN})
@@ -710,36 +904,23 @@ class MentorViewSet(viewsets.ModelViewSet):
                 ).exists()
                 if not quiz_passed:
                     next_training_status = "in_review"
-            next_final_status = decision.get("final_approval_status", onboarding.final_approval_status)
-            next_final_rejection_reason = decision.get(
-                "final_rejection_reason",
-                onboarding.final_rejection_reason,
-            ).strip()
-            if next_final_status == "rejected" and not next_final_rejection_reason:
-                raise ValidationError(
-                    {"final_rejection_reason": "Reject reason is required for final approval rejection."}
-                )
-            if next_final_status != "rejected":
-                next_final_rejection_reason = ""
+            next_final_rejection_reason = decision.get("final_rejection_reason", "").strip()
 
             next_current_status = MentorOnboardingStatus.derive_current_status(
                 application_status=onboarding.application_status,
                 identity_status=next_identity_status,
                 contact_status=onboarding.contact_status,
                 training_status=next_training_status,
-                final_approval_status=next_final_status,
             )
 
             onboarding.identity_status = next_identity_status
             onboarding.training_status = next_training_status
-            onboarding.final_approval_status = next_final_status
             onboarding.final_rejection_reason = next_final_rejection_reason
             onboarding.current_status = next_current_status
             onboarding.save(
                 update_fields=[
                     "identity_status",
                     "training_status",
-                    "final_approval_status",
                     "final_rejection_reason",
                     "current_status",
                     "updated_at",
@@ -1351,9 +1532,38 @@ class TrainingModuleViewSet(viewsets.ReadOnlyModelViewSet):
 
         total_questions = 15
         pass_mark = TRAINING_QUIZ_PASS_MARK
-        questions, generated_by = generate_training_quiz_questions(
-            modules, total_questions=total_questions
+        latest_resolved_attempt = (
+            MentorTrainingQuizAttempt.objects.filter(mentor=mentor)
+            .exclude(status="pending")
+            .order_by("-started_at", "-id")
+            .first()
         )
+        latest_signature = (
+            quiz_questions_signature(latest_resolved_attempt.questions)
+            if latest_resolved_attempt
+            else None
+        )
+        generated_by = "openai"
+        questions = []
+        try:
+            for _ in range(3):
+                questions, generated_by = generate_training_quiz_questions(
+                    modules, total_questions=total_questions
+                )
+                if not latest_signature or quiz_questions_signature(questions) != latest_signature:
+                    break
+        except Exception as exc:
+            payload = {"detail": "Unable to generate quiz from OpenAI right now. Please try again."}
+            if settings.DEBUG:
+                payload["debug_error"] = str(exc)
+                payload["debug_error_type"] = exc.__class__.__name__
+            return Response(payload, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        if latest_signature and quiz_questions_signature(questions) == latest_signature:
+            return Response(
+                {"detail": "Could not generate a fresh quiz. Please try again."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
         attempt = MentorTrainingQuizAttempt.objects.create(
             mentor=mentor,
             total_questions=total_questions,
@@ -1644,6 +1854,8 @@ class PayoutTransactionViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in {"create", "update", "partial_update", "destroy"}:
             return [IsAdminRole()]
+        if self.action == "mark_paid":
+            return [IsMentorOrAdminRole()]
         return super().get_permissions()
 
     def get_queryset(self):
@@ -1660,6 +1872,61 @@ class PayoutTransactionViewSet(viewsets.ModelViewSet):
         if status_value:
             queryset = queryset.filter(status=status_value)
         return queryset
+
+    def _sync_wallet_pending_payout(self, payout_tx, previous_status, next_status):
+        if previous_status == next_status:
+            return
+        wallet, _ = MentorWallet.objects.get_or_create(mentor=payout_tx.mentor)
+        amount = payout_tx.amount or Decimal("0.00")
+
+        if previous_status != "paid" and next_status == "paid":
+            if wallet.pending_payout < amount:
+                raise ValidationError("Pending payout is lower than the payout transaction amount.")
+            wallet.pending_payout -= amount
+            wallet.save(update_fields=["pending_payout", "updated_at"])
+            return
+
+        if previous_status == "paid" and next_status != "paid":
+            wallet.pending_payout += amount
+            wallet.save(update_fields=["pending_payout", "updated_at"])
+
+    def perform_update(self, serializer):
+        existing = self.get_object()
+        previous_status = existing.status
+
+        with transaction.atomic():
+            payout_tx = serializer.save()
+            self._sync_wallet_pending_payout(payout_tx, previous_status, payout_tx.status)
+            if previous_status != "paid" and payout_tx.status == "paid" and not payout_tx.processed_at:
+                payout_tx.processed_at = timezone.now()
+                payout_tx.save(update_fields=["processed_at", "updated_at"])
+
+    @action(detail=True, methods=["post"], url_path="mark-paid")
+    def mark_paid(self, request, pk=None):
+        require_role(request, {ROLE_MENTOR, ROLE_ADMIN})
+        payout_tx = self.get_object()
+        if user_role(request.user) == ROLE_MENTOR and payout_tx.mentor_id != current_mentor_id(request):
+            raise PermissionDenied("You can only process your own payouts.")
+        if payout_tx.status == "paid":
+            return Response(self.get_serializer(payout_tx).data)
+
+        reference_id = str(request.data.get("reference_id") or "").strip()
+        note = request.data.get("note")
+
+        with transaction.atomic():
+            self._sync_wallet_pending_payout(payout_tx, payout_tx.status, "paid")
+            payout_tx.status = "paid"
+            payout_tx.processed_at = timezone.now()
+            update_fields = ["status", "processed_at", "updated_at"]
+            if reference_id:
+                payout_tx.reference_id = reference_id
+                update_fields.append("reference_id")
+            if note is not None:
+                payout_tx.note = str(note)
+                update_fields.append("note")
+            payout_tx.save(update_fields=update_fields)
+
+        return Response(self.get_serializer(payout_tx).data)
 
 
 class DonationTransactionViewSet(viewsets.ModelViewSet):

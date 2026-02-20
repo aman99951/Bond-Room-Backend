@@ -348,7 +348,6 @@ class MentorOnboardingStatusAdmin(admin.ModelAdmin):
         'identity_status',
         'contact_status',
         'training_status',
-        'final_approval_status',
         'current_status',
         'updated_at',
     )
@@ -357,7 +356,6 @@ class MentorOnboardingStatusAdmin(admin.ModelAdmin):
         'identity_status',
         'contact_status',
         'training_status',
-        'final_approval_status',
         'current_status',
     )
     search_fields = ('mentor__first_name', 'mentor__last_name', 'mentor__email')

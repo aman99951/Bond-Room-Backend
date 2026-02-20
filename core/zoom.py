@@ -110,6 +110,9 @@ def create_zoom_meeting(session):
             "waiting_room": False,
             "approval_type": 2,
             "audio": "both",
+            "host_video": True,
+            "participant_video": True,
+            "auto_recording": "cloud",
         },
     }
 

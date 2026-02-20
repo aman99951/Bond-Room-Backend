@@ -13,12 +13,15 @@ class BondRoomAutoSchema(AutoSchema):
 
 
 PUBLIC_PATHS = {
+    "/api/locations/states/",
+    "/api/locations/cities/",
     "/api/login/",
     "/api/admin/login/",
     "/api/token/refresh/",
     "/api/auth/register/admin/",
     "/api/auth/register/mentee/",
     "/api/auth/register/mentor/",
+    "/api/auth/mobile-login/verify-otp/",
     "/api/auth/parent-consent/send-otp/",
     "/api/auth/parent-consent/verify-otp/",
     "/api/auth/mentor-contact/send-otp/",

@@ -1473,6 +1473,31 @@
         ],
         "type": "object"
       },
+      "MobileLoginOtpVerify": {
+        "properties": {
+          "mobile": {
+            "maxLength": 20,
+            "type": "string"
+          },
+          "otp": {
+            "maxLength": 6,
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "mentee",
+              "mentor"
+            ],
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "mobile",
+          "otp"
+        ],
+        "type": "object"
+      },
       "ParentConsentVerification": {
         "properties": {
           "id": {
@@ -2227,6 +2252,47 @@
         ]
       }
     },
+    "/api/auth/mobile-login/verify-otp/": {
+      "post": {
+        "description": "",
+        "operationId": "createMobileLoginOtpVerifyPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MobileLoginOtpVerify"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MobileLoginOtpVerify"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MobileLoginOtpVerify"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MobileLoginOtpVerify"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
     "/api/auth/parent-consent/send-otp/": {
       "post": {
         "description": "",
@@ -2638,6 +2704,52 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DonationTransaction"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/locations/cities/": {
+      "get": {
+        "description": "",
+        "operationId": "listLocationCitiesGet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {},
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/locations/states/": {
+      "get": {
+        "description": "",
+        "operationId": "listLocationStatesGet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {},
+                  "type": "array"
                 }
               }
             },
@@ -5516,6 +5628,38 @@
             }
           }
         },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mentor"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentors/{id}/reviews/": {
+      "get": {
+        "description": "",
+        "operationId": "reviewsMentorGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {

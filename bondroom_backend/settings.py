@@ -316,6 +316,7 @@ SIMPLE_JWT = {
 
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
 MENTOR_TEST_OTP = os.environ.get("MENTOR_TEST_OTP", "").strip()
+MOCK_LOGIN_OTP = os.environ.get("MOCK_LOGIN_OTP", "123456").strip()
 
 cors_allowed_origins_env = os.environ.get(
     "CORS_ALLOWED_ORIGINS",

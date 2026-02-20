@@ -85,9 +85,6 @@ class MentorOnboardingStatus(models.Model):
     training_status = models.CharField(
         max_length=20, choices=STATUS_CHOICES, default="pending"
     )
-    final_approval_status = models.CharField(
-        max_length=20, choices=STATUS_CHOICES, default="pending"
-    )
     final_rejection_reason = models.TextField(blank=True)
     current_status = models.CharField(
         max_length=20, choices=STATUS_CHOICES, default="in_review"
@@ -105,31 +102,27 @@ class MentorOnboardingStatus(models.Model):
         identity_status: str,
         contact_status: str,
         training_status: str,
-        final_approval_status: str,
     ) -> str:
+        def is_completed_like(value: str) -> bool:
+            normalized = str(value or "").lower()
+            return normalized in {"completed", "verified"}
+
         stages = [
             application_status,
             identity_status,
             contact_status,
             training_status,
-            final_approval_status,
         ]
 
         if any(item == "rejected" for item in stages):
             return "rejected"
 
-        # Product rule: once these three stages are complete, onboarding is complete.
-        if (
-            identity_status == "completed"
-            and training_status == "completed"
-            and final_approval_status == "completed"
-        ):
+        # Product rule: mentor is completed once application + identity are complete.
+        if is_completed_like(application_status) and is_completed_like(identity_status):
             return "completed"
 
         if all(item == "pending" for item in stages):
             return "pending"
-        if all(item == "completed" for item in stages):
-            return "completed"
         return "in_review"
 
     def sync_current_status(self) -> str:
@@ -138,7 +131,6 @@ class MentorOnboardingStatus(models.Model):
             identity_status=self.identity_status,
             contact_status=self.contact_status,
             training_status=self.training_status,
-            final_approval_status=self.final_approval_status,
         )
         return self.current_status
 

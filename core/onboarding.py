@@ -60,7 +60,14 @@ def sync_mentor_onboarding_training_status(mentor_or_id, module_payload=None):
         else:
             next_status = module_status
 
+    changed = False
     if onboarding.training_status != next_status:
         onboarding.training_status = next_status
-        onboarding.save(update_fields=["training_status", "updated_at", "current_status"])
+        changed = True
+    previous_current = onboarding.current_status
+    onboarding.sync_current_status()
+    if onboarding.current_status != previous_current:
+        changed = True
+    if changed:
+        onboarding.save(update_fields=["training_status", "current_status", "updated_at"])
     return onboarding

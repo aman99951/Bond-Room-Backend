@@ -278,11 +278,11 @@ class MenteeRegisterSerializer(serializers.Serializer):
             email=email,
             defaults={"username": username},
         )
-        if created and password:
+        if password:
             user.set_password(password)
             user.save(update_fields=["password"])
-        if not created and password:
-            user.set_password(password)
+        elif created and user.has_usable_password():
+            user.set_unusable_password()
             user.save(update_fields=["password"])
         UserProfile.objects.get_or_create(user=user, defaults={"role": "mentee"})
         mentee, _ = Mentee.objects.update_or_create(email=email, defaults=validated_data)
@@ -319,11 +319,11 @@ class MentorRegisterSerializer(serializers.Serializer):
             email=email,
             defaults={"username": username},
         )
-        if created and password:
+        if password:
             user.set_password(password)
             user.save(update_fields=["password"])
-        if not created and password:
-            user.set_password(password)
+        elif created and user.has_usable_password():
+            user.set_unusable_password()
             user.save(update_fields=["password"])
         UserProfile.objects.get_or_create(user=user, defaults={"role": "mentor"})
         mentor, _ = Mentor.objects.update_or_create(email=email, defaults=validated_data)
@@ -391,6 +391,7 @@ class AdminOnboardingDecisionSerializer(serializers.Serializer):
     training_status = serializers.ChoiceField(
         choices=MentorOnboardingStatus.STATUS_CHOICES, required=False
     )
+    # Deprecated input kept for backward compatibility with existing admin UI payloads.
     final_approval_status = serializers.ChoiceField(
         choices=MentorOnboardingStatus.STATUS_CHOICES, required=False
     )
@@ -400,12 +401,6 @@ class AdminOnboardingDecisionSerializer(serializers.Serializer):
     def validate(self, attrs):
         if not attrs:
             raise serializers.ValidationError("Provide at least one decision field.")
-        if attrs.get("final_approval_status") == "rejected" and not attrs.get(
-            "final_rejection_reason", ""
-        ).strip():
-            raise serializers.ValidationError(
-                {"final_rejection_reason": "Reject reason is required for final approval rejection."}
-            )
         return attrs
 
 
@@ -427,6 +422,16 @@ class MentorContactOtpSendSerializer(serializers.Serializer):
 class MentorContactOtpVerifySerializer(serializers.Serializer):
     mentor_id = serializers.IntegerField()
     channel = serializers.ChoiceField(choices=[("email", "email"), ("phone", "phone")])
+    otp = serializers.CharField(max_length=6)
+
+
+class MobileLoginOtpVerifySerializer(serializers.Serializer):
+    mobile = serializers.CharField(max_length=20)
+    role = serializers.ChoiceField(
+        choices=[("mentee", "mentee"), ("mentor", "mentor")],
+        required=False,
+        allow_null=True,
+    )
     otp = serializers.CharField(max_length=6)
 
 

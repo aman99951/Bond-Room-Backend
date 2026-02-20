@@ -38,6 +38,7 @@ from core.schema import PUBLIC_PATHS
 
 POST_ONLY_PUBLIC_PATHS = {
     "/api/admin/login/",
+    "/api/auth/mobile-login/verify-otp/",
     "/api/auth/mentor-contact/send-otp/",
     "/api/auth/mentor-contact/verify-otp/",
     "/api/auth/parent-consent/send-otp/",
@@ -222,7 +223,6 @@ class ApiAutomationCoverageTests(APITestCase):
             identity_status="in_review",
             contact_status="pending",
             training_status="pending",
-            final_approval_status="pending",
         )
 
         cls.training_module = TrainingModule.objects.create(
@@ -323,8 +323,10 @@ class ApiAutomationCoverageTests(APITestCase):
             "/api/mentors/{id}/impact-dashboard/": self.mentor.id,
             "/api/mentors/{id}/onboarding/": self.mentor.id,
             "/api/mentors/{id}/profile/": self.mentor.id,
+            "/api/mentors/{id}/reviews/": self.mentor.id,
             "/api/parent-consent-verifications/{id}/": self.parent_consent.id,
             "/api/payout-transactions/{id}/": self.payout.id,
+            "/api/payout-transactions/{id}/mark-paid/": self.payout.id,
             "/api/session-dispositions/{id}/": self.disposition.id,
             "/api/session-feedback/{id}/": self.session_feedback.id,
             "/api/session-issue-reports/{id}/": self.issue_report.id,
@@ -338,6 +340,8 @@ class ApiAutomationCoverageTests(APITestCase):
         }
 
     def _resolve_path(self, schema_path):
+        if schema_path == "/api/locations/cities/":
+            return "/api/locations/cities/?state=Tamil%20Nadu"
         if schema_path == "/api/mentors/recommended/":
             return f"/api/mentors/recommended/?mentee_request_id={self.mentee_request.id}"
         if schema_path == "/api/training-modules/quiz/":
@@ -431,6 +435,8 @@ class ApiAutomationCoverageTests(APITestCase):
             )
             self.assertEqual(send.status_code, 200, send.data)
             return {"mentor_id": self.mentor.id, "channel": "email", "otp": send.data["otp"]}
+        if schema_path == "/api/auth/mobile-login/verify-otp/":
+            return {"mobile": self.mentor.mobile, "role": "mentor", "otp": "123456"}
         if schema_path == "/api/login/":
             return {"email": self.mentee_user.email, "password": self.mentee_password}
         if schema_path == "/api/admin/login/":
@@ -440,7 +446,7 @@ class ApiAutomationCoverageTests(APITestCase):
         if schema_path == "/api/auth/logout/":
             return {}
         if schema_path == "/api/mentors/{id}/admin-decision/":
-            return {"training_status": "completed", "final_approval_status": "completed"}
+            return {"training_status": "completed"}
         if schema_path == "/api/sessions/{id}/disposition/":
             return {"action": "claim", "amount": "120.00", "note": "Automation claim"}
         if schema_path == "/api/sessions/{id}/join-link/":
@@ -505,6 +511,10 @@ class ApiAutomationCoverageTests(APITestCase):
         return None
 
     def _negative_public_case(self, schema_path):
+        if schema_path == "/api/locations/states/":
+            return "POST", "/api/locations/states/", {}, {405}
+        if schema_path == "/api/locations/cities/":
+            return "GET", "/api/locations/cities/", {}, {400}
         if schema_path == "/api/schema/":
             return "POST", "/api/schema/", {}, {405}
         if schema_path == "/api/login/":
@@ -532,6 +542,8 @@ class ApiAutomationCoverageTests(APITestCase):
                 {"mentor_id": 999999, "channel": "email", "otp": "000000"},
                 {404},
             )
+        if schema_path == "/api/auth/mobile-login/verify-otp/":
+            return "POST", "/api/auth/mobile-login/verify-otp/", {"mobile": self.mentor.mobile, "otp": "000000"}, {400}
         raise AssertionError(f"Unhandled negative public case for {schema_path}")
 
     def _request(self, method, path, payload, schema_path):
@@ -540,6 +552,21 @@ class ApiAutomationCoverageTests(APITestCase):
             with patch("core.api_views.zoom_is_configured", return_value=True), patch(
                 "core.api_views.maybe_attach_zoom_links",
                 return_value={"join_url": "https://zoom.test/join", "host_join_url": "https://zoom.test/host"},
+            ):
+                return client_method(path, payload or {}, format="json")
+        if schema_path == "/api/training-modules/quiz/start/" and method == "POST":
+            mock_questions = [
+                {
+                    "question": f"Question {idx + 1}",
+                    "options": ["A", "B", "C", "D"],
+                    "correct_option_index": 0,
+                    "module_title": self.training_module.title,
+                }
+                for idx in range(15)
+            ]
+            with patch(
+                "core.api_views.generate_training_quiz_questions",
+                return_value=(mock_questions, "openai"),
             ):
                 return client_method(path, payload or {}, format="json")
         if method in {"POST", "PUT", "PATCH"}:
