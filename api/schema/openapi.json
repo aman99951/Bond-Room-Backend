@@ -1723,6 +1723,10 @@
           "mentee": {
             "type": "integer"
           },
+          "mentee_avatar": {
+            "readOnly": true,
+            "type": "string"
+          },
           "mentee_first_name": {
             "readOnly": true,
             "type": "string"
@@ -6876,6 +6880,28 @@
         },
         "responses": {
           "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/sessions/request-stats/": {
+      "get": {
+        "description": "",
+        "operationId": "requestStatsSessionGet",
+        "parameters": [],
+        "responses": {
+          "200": {
             "content": {
               "application/json": {
                 "schema": {
