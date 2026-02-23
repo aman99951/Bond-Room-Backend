@@ -1,3 +1,4 @@
+from datetime import timedelta
 from decimal import Decimal
 import re
 
@@ -1127,6 +1128,39 @@ class SessionViewSet(viewsets.ModelViewSet):
         if status_value:
             queryset = queryset.filter(status=status_value)
         return queryset
+
+    @action(detail=False, methods=["get"], url_path="request-stats")
+    def request_stats(self, request):
+        require_role(request, {ROLE_MENTOR, ROLE_ADMIN})
+        role = user_role(request.user)
+        mentor_id_param = request.query_params.get("mentor_id")
+
+        if role == ROLE_MENTOR:
+            mentor_id = current_mentor_id(request)
+            if not mentor_id:
+                raise PermissionDenied("Mentor profile not found for this user.")
+            if mentor_id_param and str(mentor_id_param) != str(mentor_id):
+                raise PermissionDenied("You can only access your own session stats.")
+        else:
+            mentor_id = mentor_id_param
+
+        if not mentor_id:
+            return Response({"approved_today": 0, "approved_this_week": 0})
+
+        now = timezone.localtime()
+        start_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        start_week = start_today - timedelta(days=start_today.weekday())
+
+        approved_qs = Session.objects.filter(mentor_id=mentor_id, status="approved")
+        approved_today = approved_qs.filter(updated_at__gte=start_today).count()
+        approved_this_week = approved_qs.filter(updated_at__gte=start_week).count()
+
+        return Response(
+            {
+                "approved_today": approved_today,
+                "approved_this_week": approved_this_week,
+            }
+        )
 
     @action(detail=True, methods=["get"], url_path="mentee-profile")
     def mentee_profile(self, request, pk=None):

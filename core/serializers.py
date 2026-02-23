@@ -111,6 +111,7 @@ class SessionFeedbackSerializer(serializers.ModelSerializer):
 class SessionSerializer(serializers.ModelSerializer):
     feedback = SessionFeedbackSerializer(read_only=True)
     mentee_name = serializers.SerializerMethodField()
+    mentee_avatar = serializers.SerializerMethodField()
     mentee_first_name = serializers.CharField(source="mentee.first_name", read_only=True)
     mentee_last_name = serializers.CharField(source="mentee.last_name", read_only=True)
 
@@ -130,6 +131,14 @@ class SessionSerializer(serializers.ModelSerializer):
         if obj.mentee_id:
             return f"Mentee #{obj.mentee_id}"
         return "Mentee"
+
+    def get_mentee_avatar(self, obj):
+        if not obj.mentee_id or not getattr(obj.mentee, "avatar", None):
+            return ""
+        try:
+            return obj.mentee.avatar.url or ""
+        except ValueError:
+            return ""
 
     def validate(self, attrs):
         start = attrs.get("scheduled_start")
