@@ -692,7 +692,7 @@ class MenteeViewSet(viewsets.ModelViewSet):
             serializer.is_valid(raise_exception=True)
             serializer.save(mentee=mentee)
             return Response(serializer.data)
-        return Response(MenteePreferencesSerializer(prefs).data)
+        return Response(MenteePreferencesSerializer(prefs, context={"request": request}).data)
 
     @action(detail=True, methods=["get"], url_path="dashboard")
     def dashboard(self, request, pk=None):
@@ -712,12 +712,24 @@ class MenteeViewSet(viewsets.ModelViewSet):
             rec_qs = MatchRecommendation.objects.filter(mentee_request=latest_request).select_related(
                 "mentor"
             ).order_by("-score")[:5]
-            recommendations = MatchRecommendationSerializer(rec_qs, many=True).data
+            recommendations = MatchRecommendationSerializer(
+                rec_qs,
+                many=True,
+                context={"request": request},
+            ).data
         return Response(
             {
-                "mentee": MenteeSerializer(mentee).data,
-                "upcoming_sessions": SessionSerializer(upcoming, many=True).data,
-                "recent_sessions": SessionSerializer(recent, many=True).data,
+                "mentee": MenteeSerializer(mentee, context={"request": request}).data,
+                "upcoming_sessions": SessionSerializer(
+                    upcoming,
+                    many=True,
+                    context={"request": request},
+                ).data,
+                "recent_sessions": SessionSerializer(
+                    recent,
+                    many=True,
+                    context={"request": request},
+                ).data,
                 "recommendations": recommendations,
                 "stats": {
                     "total_sessions": sessions.count(),
@@ -796,7 +808,13 @@ class MentorViewSet(viewsets.ModelViewSet):
             generate_recommendations_for_request(req)
 
         recs = MatchRecommendation.objects.filter(mentee_request=req).select_related("mentor").order_by("-score")
-        return Response(MatchRecommendationSerializer(recs, many=True).data)
+        return Response(
+            MatchRecommendationSerializer(
+                recs,
+                many=True,
+                context={"request": request},
+            ).data
+        )
 
     @action(detail=True, methods=["get", "put", "patch"], url_path="profile")
     def profile(self, request, pk=None):
@@ -811,7 +829,7 @@ class MentorViewSet(viewsets.ModelViewSet):
             serializer.is_valid(raise_exception=True)
             serializer.save(mentor=mentor)
             return Response(serializer.data)
-        return Response(MentorProfileSerializer(profile).data)
+        return Response(MentorProfileSerializer(profile, context={"request": request}).data)
 
     @action(detail=True, methods=["get"], url_path="reviews")
     def reviews(self, request, pk=None):
@@ -869,7 +887,7 @@ class MentorViewSet(viewsets.ModelViewSet):
         ledger = SessionDisposition.objects.filter(mentor=mentor).select_related("session").order_by("-decided_at")[:20]
         return Response(
             {
-                "mentor": MentorSerializer(mentor).data,
+                "mentor": MentorSerializer(mentor, context={"request": request}).data,
                 "summary": {
                     "total_sessions": sessions.count(),
                     "completed_sessions": completed_sessions.count(),
@@ -880,7 +898,11 @@ class MentorViewSet(viewsets.ModelViewSet):
                     "total_donated": wallet.total_donated,
                 },
                 "topic_stats": list(topic_stats),
-                "ledger": SessionDispositionSerializer(ledger, many=True).data,
+                "ledger": SessionDispositionSerializer(
+                    ledger,
+                    many=True,
+                    context={"request": request},
+                ).data,
             }
         )
 
@@ -895,9 +917,26 @@ class MentorViewSet(viewsets.ModelViewSet):
         onboarding = sync_mentor_onboarding_training_status(mentor, module_payload)
         return Response(
             {
-                "status": MentorOnboardingStatusSerializer(onboarding).data,
-                "identity_verification": MentorIdentityVerificationSerializer(identity).data if identity else None,
-                "contact_verification": MentorContactVerificationSerializer(contact).data if contact else None,
+                "status": MentorOnboardingStatusSerializer(
+                    onboarding,
+                    context={"request": request},
+                ).data,
+                "identity_verification": (
+                    MentorIdentityVerificationSerializer(
+                        identity,
+                        context={"request": request},
+                    ).data
+                    if identity
+                    else None
+                ),
+                "contact_verification": (
+                    MentorContactVerificationSerializer(
+                        contact,
+                        context={"request": request},
+                    ).data
+                    if contact
+                    else None
+                ),
                 "training_modules": module_payload,
                 "training_quiz": build_training_quiz_summary(mentor),
             }
@@ -976,8 +1015,18 @@ class MentorViewSet(viewsets.ModelViewSet):
 
         return Response(
             {
-                "status": MentorOnboardingStatusSerializer(onboarding).data,
-                "identity_verification": MentorIdentityVerificationSerializer(identity).data if identity else None,
+                "status": MentorOnboardingStatusSerializer(
+                    onboarding,
+                    context={"request": request},
+                ).data,
+                "identity_verification": (
+                    MentorIdentityVerificationSerializer(
+                        identity,
+                        context={"request": request},
+                    ).data
+                    if identity
+                    else None
+                ),
                 "training_modules": module_payload,
                 "training_quiz": build_training_quiz_summary(mentor),
             }
@@ -1021,7 +1070,13 @@ class MenteeRequestViewSet(viewsets.ModelViewSet):
     def recommendations(self, request, pk=None):
         req = self.get_object()
         recs = MatchRecommendation.objects.filter(mentee_request=req).select_related("mentor").order_by("-score")
-        return Response(MatchRecommendationSerializer(recs, many=True).data)
+        return Response(
+            MatchRecommendationSerializer(
+                recs,
+                many=True,
+                context={"request": request},
+            ).data
+        )
 
 
 class MatchRecommendationViewSet(viewsets.ReadOnlyModelViewSet):
@@ -1212,7 +1267,7 @@ class SessionViewSet(viewsets.ModelViewSet):
         session = self.get_object()
         if user_role(request.user) == ROLE_MENTOR and session.mentor_id != current_mentor_id(request):
             raise PermissionDenied("You can only access mentee profiles for your own sessions.")
-        return Response(MenteeSerializer(session.mentee).data)
+        return Response(MenteeSerializer(session.mentee, context={"request": request}).data)
 
     def perform_create(self, serializer):
         role = user_role(self.request.user)
@@ -1268,7 +1323,11 @@ class SessionViewSet(viewsets.ModelViewSet):
             if participant_role in {"mentee", "mentor"}:
                 queryset = queryset.exclude(sender_role=participant_role)
             queryset = queryset.order_by("id")[:200]
-            serializer = SessionMeetingSignalSerializer(queryset, many=True)
+            serializer = SessionMeetingSignalSerializer(
+                queryset,
+                many=True,
+                context={"request": request},
+            )
             return Response(serializer.data)
 
         signal_type = str(request.data.get("signal_type", "")).strip().lower()
@@ -1287,7 +1346,10 @@ class SessionViewSet(viewsets.ModelViewSet):
             signal_type=signal_type,
             payload=payload,
         )
-        return Response(SessionMeetingSignalSerializer(signal).data, status=status.HTTP_201_CREATED)
+        return Response(
+            SessionMeetingSignalSerializer(signal, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
 
     @action(detail=True, methods=["post"], url_path="recording")
     def recording(self, request, pk=None):
@@ -1326,7 +1388,7 @@ class SessionViewSet(viewsets.ModelViewSet):
             recording.ended_at = timezone.now()
 
         recording.save()
-        return Response(SessionRecordingSerializer(recording).data)
+        return Response(SessionRecordingSerializer(recording, context={"request": request}).data)
 
     @action(detail=True, methods=["post"], url_path="analyze-transcript")
     def analyze_transcript(self, request, pk=None):
@@ -1373,7 +1435,11 @@ class SessionViewSet(viewsets.ModelViewSet):
         role = user_role(request.user)
         participant_role = resolve_session_participant_role(request, session)
         queryset = SessionAbuseIncident.objects.filter(session=session).order_by("-created_at", "-id")
-        serializer = SessionAbuseIncidentSerializer(queryset, many=True)
+        serializer = SessionAbuseIncidentSerializer(
+            queryset,
+            many=True,
+            context={"request": request},
+        )
         data = serializer.data
         if role == ROLE_MENTEE and participant_role == "mentee":
             for item in data:
@@ -1388,7 +1454,7 @@ class SessionViewSet(viewsets.ModelViewSet):
         if request.method == "GET":
             if not feedback:
                 return Response({"detail": "Feedback not found."}, status=status.HTTP_404_NOT_FOUND)
-            return Response(SessionFeedbackSerializer(feedback).data)
+            return Response(SessionFeedbackSerializer(feedback, context={"request": request}).data)
         require_role(request, {ROLE_MENTEE, ROLE_ADMIN})
         if role == ROLE_MENTEE and session.mentee_id != current_mentee_id(request):
             raise PermissionDenied("You can only submit feedback for your own sessions.")
@@ -1476,7 +1542,7 @@ class SessionViewSet(viewsets.ModelViewSet):
                     },
                 )
 
-        return Response(SessionDispositionSerializer(disposition).data)
+        return Response(SessionDispositionSerializer(disposition, context={"request": request}).data)
 
 class SessionFeedbackViewSet(viewsets.ModelViewSet):
     queryset = SessionFeedback.objects.all().select_related("session").order_by("-submitted_at")
@@ -1640,7 +1706,13 @@ class TrainingModuleViewSet(viewsets.ReadOnlyModelViewSet):
         mentor = self._resolve_mentor(request)
         modules = self.get_queryset()
         if not mentor:
-            return Response(TrainingModuleSerializer(modules, many=True).data)
+            return Response(
+                TrainingModuleSerializer(
+                    modules,
+                    many=True,
+                    context={"request": request},
+                ).data
+            )
         payload = build_training_module_payload_for_mentor(modules, mentor.id)
         sync_mentor_onboarding_training_status(mentor, payload)
         return Response(payload)

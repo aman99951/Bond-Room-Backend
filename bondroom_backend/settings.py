@@ -231,16 +231,15 @@ STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
-IS_VERCEL_RUNTIME = bool(os.environ.get("VERCEL", "").strip())
-if IS_VERCEL_RUNTIME:
-    # Vercel's /var/task is read-only. Use /tmp as writable fallback
-    # when object storage is not configured.
-    media_root_override = os.environ.get("SERVERLESS_MEDIA_ROOT", "/tmp/media").strip()
-    if media_root_override:
-        MEDIA_ROOT = Path(media_root_override)
 USE_S3_MEDIA = os.environ.get("USE_S3_MEDIA", "").strip().lower() in {"1", "true", "yes"} or bool(
     os.environ.get("AWS_STORAGE_BUCKET_NAME", "").strip()
 )
+
+# Vercel serverless functions use a read-only deployment filesystem.
+# Keep media writes in /tmp unless S3 media storage is configured.
+if os.environ.get("VERCEL", "").strip() and not USE_S3_MEDIA:
+    MEDIA_ROOT = Path("/tmp/media")
+    MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
 
 if USE_S3_MEDIA:
     INSTALLED_APPS.append("storages")
@@ -333,6 +332,7 @@ required_cors_origins = [
     "https://bond-room.vercel.app",
     "https://bond-room-dev.vercel.app",
     "https://bond-room-dev-git-dev-aman-kumars-projects-f277e079.vercel.app",
+    
 ]
 cors_allowed_origins_env = os.environ.get("CORS_ALLOWED_ORIGINS", "")
 CORS_ALLOWED_ORIGINS = []

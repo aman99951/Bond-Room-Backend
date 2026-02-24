@@ -157,7 +157,15 @@ class SessionSerializer(serializers.ModelSerializer):
         if not obj.mentee_id or not getattr(obj.mentee, "avatar", None):
             return ""
         try:
-            return obj.mentee.avatar.url or ""
+            avatar_url = obj.mentee.avatar.url or ""
+            if not avatar_url:
+                return ""
+            if avatar_url.startswith("http://") or avatar_url.startswith("https://"):
+                return avatar_url
+            request = self.context.get("request")
+            if request:
+                return request.build_absolute_uri(avatar_url)
+            return avatar_url
         except ValueError:
             return ""
 
@@ -319,7 +327,7 @@ class MenteeRegisterSerializer(serializers.Serializer):
         return mentee
 
     def to_representation(self, instance):
-        return MenteeSerializer(instance).data
+        return MenteeSerializer(instance, context=self.context).data
 
 
 class MentorRegisterSerializer(serializers.Serializer):
@@ -360,7 +368,7 @@ class MentorRegisterSerializer(serializers.Serializer):
         return mentor
 
     def to_representation(self, instance):
-        return MentorSerializer(instance).data
+        return MentorSerializer(instance, context=self.context).data
 
 
 class AdminRegisterSerializer(serializers.Serializer):
