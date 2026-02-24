@@ -127,3 +127,94 @@ class SessionFeedback(models.Model):
 
     def __str__(self) -> str:
         return f"Feedback for session {self.session_id}"
+
+
+class SessionRecording(models.Model):
+    STATUS_CHOICES = [
+        ("not_started", "Not Started"),
+        ("recording", "Recording"),
+        ("stopped", "Stopped"),
+        ("uploaded", "Uploaded"),
+        ("failed", "Failed"),
+    ]
+
+    session = models.OneToOneField(
+        Session, on_delete=models.CASCADE, related_name="recording"
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="not_started")
+    recording_url = models.URLField(blank=True)
+    storage_key = models.CharField(max_length=255, blank=True)
+    file_size_bytes = models.PositiveBigIntegerField(null=True, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
+
+    def __str__(self) -> str:
+        return f"Recording for session {self.session_id}"
+
+
+class SessionMeetingSignal(models.Model):
+    SIGNAL_TYPE_CHOICES = [
+        ("offer", "Offer"),
+        ("answer", "Answer"),
+        ("ice", "ICE Candidate"),
+        ("bye", "Call Ended"),
+    ]
+    SENDER_ROLE_CHOICES = [
+        ("mentee", "Mentee"),
+        ("mentor", "Mentor"),
+        ("admin", "Admin"),
+        ("system", "System"),
+        ("unknown", "Unknown"),
+    ]
+
+    session = models.ForeignKey(
+        Session, on_delete=models.CASCADE, related_name="meeting_signals"
+    )
+    sender_role = models.CharField(max_length=20, choices=SENDER_ROLE_CHOICES, default="unknown")
+    signal_type = models.CharField(max_length=20, choices=SIGNAL_TYPE_CHOICES)
+    payload = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self) -> str:
+        return f"Signal {self.signal_type} for session {self.session_id}"
+
+
+class SessionAbuseIncident(models.Model):
+    SEVERITY_CHOICES = [
+        ("low", "Low"),
+        ("medium", "Medium"),
+        ("high", "High"),
+    ]
+    SPEAKER_ROLE_CHOICES = [
+        ("mentee", "Mentee"),
+        ("mentor", "Mentor"),
+        ("admin", "Admin"),
+        ("system", "System"),
+        ("unknown", "Unknown"),
+    ]
+
+    session = models.ForeignKey(
+        Session, on_delete=models.CASCADE, related_name="abuse_incidents"
+    )
+    speaker_role = models.CharField(max_length=20, choices=SPEAKER_ROLE_CHOICES, default="unknown")
+    transcript_snippet = models.TextField(blank=True)
+    matched_terms = models.JSONField(default=list, blank=True)
+    severity = models.CharField(max_length=10, choices=SEVERITY_CHOICES, default="low")
+    confidence_score = models.DecimalField(
+        max_digits=4, decimal_places=2, null=True, blank=True
+    )
+    flagged_mentee_snapshot = models.JSONField(default=dict, blank=True)
+    detection_notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self) -> str:
+        return f"Abuse incident for session {self.session_id}"

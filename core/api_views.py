@@ -38,9 +38,12 @@ from .models import (
     ParentConsentVerification,
     PayoutTransaction,
     Session,
+    SessionAbuseIncident,
     SessionDisposition,
     SessionFeedback,
     SessionIssueReport,
+    SessionMeetingSignal,
+    SessionRecording,
     TrainingModule,
     UserProfile,
 )
@@ -84,8 +87,11 @@ from .serializers import (
     PayoutTransactionSerializer,
     SessionDispositionActionSerializer,
     SessionDispositionSerializer,
+    SessionAbuseIncidentSerializer,
     SessionFeedbackSerializer,
     SessionIssueReportSerializer,
+    SessionMeetingSignalSerializer,
+    SessionRecordingSerializer,
     SessionSerializer,
     TrainingModuleSerializer,
     TrainingQuizAbandonSerializer,
@@ -101,7 +107,7 @@ from .quiz import (
     evaluate_quiz_attempt,
     generate_training_quiz_questions,
 )
-from .zoom import maybe_attach_zoom_links, zoom_is_configured
+from .abuse_monitoring import classify_abuse
 from .signals import generate_recommendations_for_request
 
 TRAINING_QUIZ_PASS_MARK = 7
@@ -129,6 +135,44 @@ def require_role(request, allowed_roles):
 def deny_if_mentee_mutation(request):
     if user_role(request.user) == ROLE_MENTEE:
         raise PermissionDenied("Mentee users have read-only access for this endpoint.")
+
+
+def resolve_session_participant_role(request, session):
+    role = user_role(request.user)
+    if role == ROLE_ADMIN:
+        return "admin"
+    if role == ROLE_MENTOR and session.mentor_id == current_mentor_id(request):
+        return "mentor"
+    if role == ROLE_MENTEE and session.mentee_id == current_mentee_id(request):
+        return "mentee"
+    raise PermissionDenied("You can only access your own sessions.")
+
+
+def build_meeting_room_path(session_id, participant_role):
+    if participant_role == "mentor":
+        return f"/mentor-meeting-room?sessionId={session_id}"
+    return f"/mentee-meeting-room?sessionId={session_id}"
+
+
+def build_role_meeting_paths(session_id):
+    return {
+        "mentee": f"/mentee-meeting-room?sessionId={session_id}",
+        "mentor": f"/mentor-meeting-room?sessionId={session_id}",
+    }
+
+
+def mentee_snapshot_for_incident(session):
+    mentee = session.mentee
+    return {
+        "id": mentee.id,
+        "first_name": mentee.first_name,
+        "last_name": mentee.last_name,
+        "email": mentee.email,
+        "grade": mentee.grade,
+        "city_state": mentee.city_state,
+        "timezone": mentee.timezone,
+        "parent_mobile": mentee.parent_mobile,
+    }
 
 
 def normalize_mobile(value):
@@ -1187,43 +1231,154 @@ class SessionViewSet(viewsets.ModelViewSet):
             MentorAvailabilitySlot.objects.filter(id=session.availability_slot_id).update(is_available=False)
 
     def perform_update(self, serializer):
-        session = serializer.save()
-        meeting_links = maybe_attach_zoom_links(session)
-        if meeting_links:
-            Session.objects.filter(id=session.id).update(**meeting_links)
+        serializer.save()
 
     @action(detail=True, methods=["post"], url_path="join-link")
     def join_link(self, request, pk=None):
         session = self.get_object()
-        role = user_role(request.user)
-        if role == ROLE_MENTOR and session.mentor_id != current_mentor_id(request):
-            raise PermissionDenied("You can only access your own sessions.")
-        if role == ROLE_MENTEE and session.mentee_id != current_mentee_id(request):
-            raise PermissionDenied("You can only access your own sessions.")
+        participant_role = resolve_session_participant_role(request, session)
         if session.status not in {"approved", "scheduled"}:
             return Response({"detail": "Session not approved yet."}, status=status.HTTP_400_BAD_REQUEST)
-        if not zoom_is_configured():
-            return Response({"detail": "Zoom credentials are not configured."}, status=status.HTTP_400_BAD_REQUEST)
-
-        meeting_links = maybe_attach_zoom_links(session)
-        if meeting_links:
-            if meeting_links.get("error"):
-                return Response(
-                    {"detail": meeting_links.get("error")},
-                    status=status.HTTP_502_BAD_GATEWAY,
-                )
-            Session.objects.filter(id=session.id).update(**meeting_links)
-            session.refresh_from_db(fields=["join_url", "host_join_url"])
-
-        if not session.join_url and not session.host_join_url:
-            return Response({"detail": "Unable to create Zoom meeting."}, status=status.HTTP_502_BAD_GATEWAY)
-
+        role_paths = build_role_meeting_paths(session.id)
+        meeting_path = build_meeting_room_path(session.id, participant_role)
+        Session.objects.filter(id=session.id).update(
+            join_url=role_paths["mentee"],
+            host_join_url=role_paths["mentor"],
+        )
         return Response(
             {
-                "join_url": session.join_url,
-                "host_join_url": session.host_join_url,
+                "provider": "bondroom",
+                "meeting_url": meeting_path,
+                "join_url": role_paths["mentee"],
+                "host_join_url": role_paths["mentor"],
+                "room_key": f"session-{session.id}",
             }
         )
+
+    @action(detail=True, methods=["get", "post"], url_path="meeting-signals")
+    def meeting_signals(self, request, pk=None):
+        session = self.get_object()
+        participant_role = resolve_session_participant_role(request, session)
+        if request.method == "GET":
+            try:
+                after_id = int(request.query_params.get("after_id", 0) or 0)
+            except (TypeError, ValueError):
+                return Response({"detail": "after_id must be an integer."}, status=status.HTTP_400_BAD_REQUEST)
+            queryset = SessionMeetingSignal.objects.filter(session=session, id__gt=after_id)
+            if participant_role in {"mentee", "mentor"}:
+                queryset = queryset.exclude(sender_role=participant_role)
+            queryset = queryset.order_by("id")[:200]
+            serializer = SessionMeetingSignalSerializer(queryset, many=True)
+            return Response(serializer.data)
+
+        signal_type = str(request.data.get("signal_type", "")).strip().lower()
+        if signal_type not in {"offer", "answer", "ice", "bye"}:
+            return Response(
+                {"detail": "signal_type must be one of: offer, answer, ice, bye."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        payload = request.data.get("payload") or {}
+        if not isinstance(payload, dict):
+            return Response({"detail": "payload must be an object."}, status=status.HTTP_400_BAD_REQUEST)
+
+        signal = SessionMeetingSignal.objects.create(
+            session=session,
+            sender_role=participant_role,
+            signal_type=signal_type,
+            payload=payload,
+        )
+        return Response(SessionMeetingSignalSerializer(signal).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"], url_path="recording")
+    def recording(self, request, pk=None):
+        session = self.get_object()
+        require_role(request, {ROLE_MENTOR, ROLE_ADMIN})
+        resolve_session_participant_role(request, session)
+        status_value = str(request.data.get("status", "")).strip().lower()
+        if status_value not in {"not_started", "recording", "stopped", "uploaded", "failed"}:
+            return Response(
+                {"detail": "status must be one of: not_started, recording, stopped, uploaded, failed."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        recording, _ = SessionRecording.objects.get_or_create(session=session)
+        recording.status = status_value
+        recording.recording_url = str(request.data.get("recording_url", recording.recording_url or "")).strip()
+        recording.storage_key = str(request.data.get("storage_key", recording.storage_key or "")).strip()
+        file_size = request.data.get("file_size_bytes")
+        if file_size not in (None, ""):
+            try:
+                recording.file_size_bytes = int(file_size)
+            except (TypeError, ValueError):
+                return Response(
+                    {"detail": "file_size_bytes must be an integer."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        metadata = request.data.get("metadata")
+        if metadata is not None:
+            if not isinstance(metadata, dict):
+                return Response({"detail": "metadata must be an object."}, status=status.HTTP_400_BAD_REQUEST)
+            recording.metadata = metadata
+
+        if status_value == "recording" and not recording.started_at:
+            recording.started_at = timezone.now()
+        if status_value in {"stopped", "uploaded", "failed"}:
+            recording.ended_at = timezone.now()
+
+        recording.save()
+        return Response(SessionRecordingSerializer(recording).data)
+
+    @action(detail=True, methods=["post"], url_path="analyze-transcript")
+    def analyze_transcript(self, request, pk=None):
+        session = self.get_object()
+        require_role(request, {ROLE_MENTOR, ROLE_ADMIN})
+        participant_role = resolve_session_participant_role(request, session)
+        transcript = str(request.data.get("transcript", "")).strip()
+        speaker_role = str(request.data.get("speaker_role", participant_role)).strip().lower() or participant_role
+        if speaker_role not in {"mentee", "mentor", "admin", "system", "unknown"}:
+            speaker_role = "unknown"
+
+        analysis = classify_abuse(transcript)
+        incident = None
+        snapshot = {}
+        if analysis["flagged"]:
+            if speaker_role == "mentee":
+                snapshot = mentee_snapshot_for_incident(session)
+            incident = SessionAbuseIncident.objects.create(
+                session=session,
+                speaker_role=speaker_role,
+                transcript_snippet=transcript[:5000],
+                matched_terms=analysis["matches"],
+                severity=analysis["severity"],
+                confidence_score=analysis["confidence_score"],
+                flagged_mentee_snapshot=snapshot,
+                detection_notes=str(request.data.get("notes", "")).strip(),
+            )
+
+        role = user_role(request.user)
+        return Response(
+            {
+                "flagged": analysis["flagged"],
+                "severity": analysis["severity"],
+                "confidence_score": analysis["confidence_score"],
+                "matched_terms": analysis["matches"],
+                "incident_id": incident.id if incident else None,
+                "flagged_mentee_info": snapshot if role in {ROLE_ADMIN, ROLE_MENTOR} else {},
+            }
+        )
+
+    @action(detail=True, methods=["get"], url_path="abuse-incidents")
+    def abuse_incidents(self, request, pk=None):
+        session = self.get_object()
+        role = user_role(request.user)
+        participant_role = resolve_session_participant_role(request, session)
+        queryset = SessionAbuseIncident.objects.filter(session=session).order_by("-created_at", "-id")
+        serializer = SessionAbuseIncidentSerializer(queryset, many=True)
+        data = serializer.data
+        if role == ROLE_MENTEE and participant_role == "mentee":
+            for item in data:
+                item["flagged_mentee_snapshot"] = {}
+        return Response(data)
 
     @action(detail=True, methods=["get", "post"], url_path="feedback")
     def feedback(self, request, pk=None):
