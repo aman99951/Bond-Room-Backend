@@ -320,7 +320,7 @@ MOCK_LOGIN_OTP = os.environ.get("MOCK_LOGIN_OTP", "123456").strip()
 
 cors_allowed_origins_env = os.environ.get(
     "CORS_ALLOWED_ORIGINS",
-    "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173,https://bond-room.vercel.app,https://bond-room-dev-git-dev-aman-kumars-projects-f277e079.vercel.app",
+    "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173,https://bond-room.vercel.app,https://bond-room-dev.vercel.app",
 )
 CORS_ALLOWED_ORIGINS = []
 for origin in cors_allowed_origins_env.split(","):
