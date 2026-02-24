@@ -2,6 +2,7 @@ from datetime import timedelta
 from hashlib import sha256
 from random import randint
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework import serializers
@@ -61,10 +62,33 @@ def ensure_username(base: str) -> str:
     return candidate
 
 
+def build_absolute_media_url(raw_url: str, request=None) -> str:
+    value = str(raw_url or "").strip()
+    if not value:
+        return ""
+    if value.startswith("http://") or value.startswith("https://"):
+        return value
+    if request is not None:
+        try:
+            return request.build_absolute_uri(value)
+        except Exception:
+            pass
+    public_base = str(getattr(settings, "PUBLIC_BASE_URL", "") or "").strip()
+    if public_base:
+        return f"{public_base.rstrip('/')}/{value.lstrip('/')}"
+    return value
+
+
 class MenteeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Mentee
         fields = "__all__"
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        data["avatar"] = build_absolute_media_url(data.get("avatar", ""), request=request)
+        return data
 
 
 class MentorSerializer(serializers.ModelSerializer):
@@ -160,12 +184,8 @@ class SessionSerializer(serializers.ModelSerializer):
             avatar_url = obj.mentee.avatar.url or ""
             if not avatar_url:
                 return ""
-            if avatar_url.startswith("http://") or avatar_url.startswith("https://"):
-                return avatar_url
             request = self.context.get("request")
-            if request:
-                return request.build_absolute_uri(avatar_url)
-            return avatar_url
+            return build_absolute_media_url(avatar_url, request=request)
         except ValueError:
             return ""
 

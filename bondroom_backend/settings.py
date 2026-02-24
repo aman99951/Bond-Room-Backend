@@ -78,6 +78,17 @@ DEBUG = os.environ.get("DEBUG", "true").strip().lower() == "true"
 allowed_hosts_env = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1,.vercel.app")
 ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_env.split(",") if host.strip()]
 
+PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").strip()
+if not PUBLIC_BASE_URL:
+    vercel_url = (
+        os.environ.get("VERCEL_PROJECT_PRODUCTION_URL", "").strip()
+        or os.environ.get("VERCEL_URL", "").strip()
+    )
+    if vercel_url:
+        PUBLIC_BASE_URL = f"https://{vercel_url.lstrip('/')}"
+if PUBLIC_BASE_URL and not PUBLIC_BASE_URL.startswith(("http://", "https://")):
+    PUBLIC_BASE_URL = f"https://{PUBLIC_BASE_URL.lstrip('/')}"
+
 
 # Application definition
 
@@ -234,6 +245,9 @@ MEDIA_ROOT = BASE_DIR / 'media'
 USE_S3_MEDIA = os.environ.get("USE_S3_MEDIA", "").strip().lower() in {"1", "true", "yes"} or bool(
     os.environ.get("AWS_STORAGE_BUCKET_NAME", "").strip()
 )
+
+if PUBLIC_BASE_URL and not USE_S3_MEDIA:
+    MEDIA_URL = f"{PUBLIC_BASE_URL.rstrip('/')}/media/"
 
 # Vercel serverless functions use a read-only deployment filesystem.
 # Keep media writes in /tmp unless S3 media storage is configured.
