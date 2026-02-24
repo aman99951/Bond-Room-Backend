@@ -231,6 +231,13 @@ STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+IS_VERCEL_RUNTIME = bool(os.environ.get("VERCEL", "").strip())
+if IS_VERCEL_RUNTIME:
+    # Vercel's /var/task is read-only. Use /tmp as writable fallback
+    # when object storage is not configured.
+    media_root_override = os.environ.get("SERVERLESS_MEDIA_ROOT", "/tmp/media").strip()
+    if media_root_override:
+        MEDIA_ROOT = Path(media_root_override)
 USE_S3_MEDIA = os.environ.get("USE_S3_MEDIA", "").strip().lower() in {"1", "true", "yes"} or bool(
     os.environ.get("AWS_STORAGE_BUCKET_NAME", "").strip()
 )
