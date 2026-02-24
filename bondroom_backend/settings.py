@@ -318,14 +318,27 @@ OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
 MENTOR_TEST_OTP = os.environ.get("MENTOR_TEST_OTP", "").strip()
 MOCK_LOGIN_OTP = os.environ.get("MOCK_LOGIN_OTP", "123456").strip()
 
-cors_allowed_origins_env = os.environ.get(
-    "CORS_ALLOWED_ORIGINS",
-    "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173,https://bond-room.vercel.app",
-)
+required_cors_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:4173",
+    "http://127.0.0.1:4173",
+    "https://bond-room.vercel.app",
+    "https://bond-room-dev-git-dev-aman-kumars-projects-f277e079.vercel.app",
+]
+cors_allowed_origins_env = os.environ.get("CORS_ALLOWED_ORIGINS", "")
 CORS_ALLOWED_ORIGINS = []
-for origin in cors_allowed_origins_env.split(","):
+for origin in required_cors_origins + cors_allowed_origins_env.split(","):
     normalized = origin.strip().rstrip("/")
-    if normalized:
+    if normalized and normalized not in CORS_ALLOWED_ORIGINS:
         CORS_ALLOWED_ORIGINS.append(normalized)
+
+cors_allowed_origin_regexes_env = os.environ.get("CORS_ALLOWED_ORIGIN_REGEXES", "")
+CORS_ALLOWED_ORIGIN_REGEXES = [r"^https://bond-room(-dev)?-git-dev-.*\.vercel\.app$"]
+for regex_value in cors_allowed_origin_regexes_env.split(","):
+    normalized = regex_value.strip()
+    if normalized and normalized not in CORS_ALLOWED_ORIGIN_REGEXES:
+        CORS_ALLOWED_ORIGIN_REGEXES.append(normalized)
+
 CORS_ALLOW_ALL_ORIGINS = os.environ.get("CORS_ALLOW_ALL_ORIGINS", "false").lower() == "true"
 CORS_ALLOW_CREDENTIALS = True
