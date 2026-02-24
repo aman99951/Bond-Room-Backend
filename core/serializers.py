@@ -25,9 +25,12 @@ from .models import (
     ParentConsentVerification,
     PayoutTransaction,
     Session,
+    SessionAbuseIncident,
     SessionDisposition,
     SessionFeedback,
     SessionIssueReport,
+    SessionMeetingSignal,
+    SessionRecording,
     TrainingModule,
     UserProfile,
 )
@@ -106,6 +109,24 @@ class SessionFeedbackSerializer(serializers.ModelSerializer):
         if value is not None and (value < 1 or value > 5):
             raise serializers.ValidationError("Rating must be between 1 and 5.")
         return value
+
+
+class SessionRecordingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SessionRecording
+        fields = "__all__"
+
+
+class SessionMeetingSignalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SessionMeetingSignal
+        fields = "__all__"
+
+
+class SessionAbuseIncidentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SessionAbuseIncident
+        fields = "__all__"
 
 
 class SessionSerializer(serializers.ModelSerializer):

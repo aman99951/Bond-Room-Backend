@@ -33,6 +33,9 @@ from .models import (
     SessionDisposition,
     SessionFeedback,
     SessionIssueReport,
+    SessionAbuseIncident,
+    SessionMeetingSignal,
+    SessionRecording,
     TrainingModule,
     UserProfile,
 )
@@ -277,6 +280,27 @@ class SessionIssueReportAdmin(admin.ModelAdmin):
     list_display = ('session', 'mentor', 'category', 'status', 'created_at', 'resolved_at')
     list_filter = ('category', 'status')
     search_fields = ('mentor__first_name', 'mentor__last_name', 'mentor__email')
+
+
+@admin.register(SessionRecording)
+class SessionRecordingAdmin(admin.ModelAdmin):
+    list_display = ('session', 'status', 'recording_url', 'started_at', 'ended_at', 'updated_at')
+    list_filter = ('status',)
+    search_fields = ('session__id', 'session__mentee__email', 'session__mentor__email')
+
+
+@admin.register(SessionMeetingSignal)
+class SessionMeetingSignalAdmin(admin.ModelAdmin):
+    list_display = ('id', 'session', 'sender_role', 'signal_type', 'created_at')
+    list_filter = ('sender_role', 'signal_type')
+    search_fields = ('session__id',)
+
+
+@admin.register(SessionAbuseIncident)
+class SessionAbuseIncidentAdmin(admin.ModelAdmin):
+    list_display = ('session', 'speaker_role', 'severity', 'confidence_score', 'created_at')
+    list_filter = ('speaker_role', 'severity')
+    search_fields = ('session__id', 'transcript_snippet')
 
 
 @admin.register(UserProfile)

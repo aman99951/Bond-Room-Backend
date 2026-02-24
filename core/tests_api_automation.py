@@ -55,6 +55,8 @@ POST_ONLY_AUTHENTICATED_PATHS = {
     "/api/mentors/{id}/admin-decision/",
     "/api/sessions/{id}/disposition/",
     "/api/sessions/{id}/join-link/",
+    "/api/sessions/{id}/analyze-transcript/",
+    "/api/sessions/{id}/recording/",
     "/api/training-modules/{id}/watch-video/",
     "/api/training-modules/quiz/start/",
     "/api/training-modules/quiz/submit/",
@@ -334,6 +336,10 @@ class ApiAutomationCoverageTests(APITestCase):
             "/api/sessions/{id}/disposition/": self.session.id,
             "/api/sessions/{id}/feedback/": self.session.id,
             "/api/sessions/{id}/join-link/": self.session.id,
+            "/api/sessions/{id}/meeting-signals/": self.session.id,
+            "/api/sessions/{id}/recording/": self.session.id,
+            "/api/sessions/{id}/analyze-transcript/": self.session.id,
+            "/api/sessions/{id}/abuse-incidents/": self.session.id,
             "/api/sessions/{id}/mentee-profile/": self.session.id,
             "/api/training-modules/{id}/": self.training_module.id,
             "/api/training-modules/{id}/watch-video/": self.training_module.id,
@@ -451,6 +457,12 @@ class ApiAutomationCoverageTests(APITestCase):
             return {"action": "claim", "amount": "120.00", "note": "Automation claim"}
         if schema_path == "/api/sessions/{id}/join-link/":
             return {}
+        if schema_path == "/api/sessions/{id}/meeting-signals/":
+            return {"signal_type": "offer", "payload": {"sdp": "seed"}}
+        if schema_path == "/api/sessions/{id}/recording/":
+            return {"status": "recording", "metadata": {"source": "automation"}}
+        if schema_path == "/api/sessions/{id}/analyze-transcript/":
+            return {"transcript": "you are stupid", "speaker_role": "mentee"}
         if schema_path == "/api/training-modules/{id}/watch-video/":
             return {"mentor_id": self.mentor.id, "video_index": 1}
         if schema_path == "/api/training-modules/quiz/start/":
@@ -548,12 +560,6 @@ class ApiAutomationCoverageTests(APITestCase):
 
     def _request(self, method, path, payload, schema_path):
         client_method = getattr(self.client, method.lower())
-        if schema_path == "/api/sessions/{id}/join-link/" and method == "POST":
-            with patch("core.api_views.zoom_is_configured", return_value=True), patch(
-                "core.api_views.maybe_attach_zoom_links",
-                return_value={"join_url": "https://zoom.test/join", "host_join_url": "https://zoom.test/host"},
-            ):
-                return client_method(path, payload or {}, format="json")
         if schema_path == "/api/training-modules/quiz/start/" and method == "POST":
             mock_questions = [
                 {

@@ -4,7 +4,10 @@ from .mentee_flow import (
     MenteePreferences,
     ParentConsentVerification,
     Session,
+    SessionAbuseIncident,
     SessionFeedback,
+    SessionMeetingSignal,
+    SessionRecording,
 )
 from .mentor import Mentor
 from .mentor_finance import (
@@ -34,6 +37,9 @@ __all__ = [
     'MentorAvailabilitySlot',
     'Session',
     'SessionFeedback',
+    'SessionRecording',
+    'SessionMeetingSignal',
+    'SessionAbuseIncident',
     'Mentor',
     'MentorProfile',
     'SessionDisposition',
