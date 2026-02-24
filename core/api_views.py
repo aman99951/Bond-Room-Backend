@@ -1244,6 +1244,18 @@ class SessionViewSet(viewsets.ModelViewSet):
         )
         serializer.is_valid(raise_exception=True)
         serializer.save(session=session)
+
+        # Keep mentor.average_rating in sync with actual submitted feedback.
+        avg_rating = (
+            SessionFeedback.objects
+            .filter(session__mentor=session.mentor, rating__isnull=False)
+            .aggregate(value=Avg("rating"))
+            .get("value")
+        )
+        Mentor.objects.filter(id=session.mentor_id).update(
+            average_rating=round(avg_rating, 2) if avg_rating is not None else None
+        )
+
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["post"], url_path="disposition")
