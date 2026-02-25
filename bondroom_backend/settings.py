@@ -242,77 +242,29 @@ STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
-USE_S3_MEDIA = os.environ.get("USE_S3_MEDIA", "").strip().lower() in {"1", "true", "yes"} or bool(
-    os.environ.get("AWS_STORAGE_BUCKET_NAME", "").strip()
-)
+MEDIA_FALLBACK_ROOTS = []
 
-if PUBLIC_BASE_URL and not USE_S3_MEDIA:
+if PUBLIC_BASE_URL:
     MEDIA_URL = f"{PUBLIC_BASE_URL.rstrip('/')}/media/"
 
 # Vercel serverless functions use a read-only deployment filesystem.
-# Keep media writes in /tmp unless S3 media storage is configured.
-if os.environ.get("VERCEL", "").strip() and not USE_S3_MEDIA:
+# Keep media writes in /tmp.
+# Read checked-in media files from the bundled deployment directory.
+if os.environ.get("VERCEL", "").strip():
+    bundled_media_root = BASE_DIR / "media"
+    if bundled_media_root.exists():
+        MEDIA_FALLBACK_ROOTS.append(bundled_media_root)
     MEDIA_ROOT = Path("/tmp/media")
     MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
 
-if USE_S3_MEDIA:
-    INSTALLED_APPS.append("storages")
-
-    AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID", "").strip()
-    AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY", "").strip()
-    AWS_STORAGE_BUCKET_NAME = os.environ.get("AWS_STORAGE_BUCKET_NAME", "").strip()
-    AWS_S3_REGION_NAME = os.environ.get("AWS_S3_REGION_NAME", "").strip()
-    AWS_S3_ENDPOINT_URL = os.environ.get("AWS_S3_ENDPOINT_URL", "").strip() or None
-    AWS_S3_CUSTOM_DOMAIN = os.environ.get("AWS_S3_CUSTOM_DOMAIN", "").strip()
-    AWS_MEDIA_LOCATION = os.environ.get("AWS_MEDIA_LOCATION", "media").strip("/") or "media"
-
-    if not AWS_STORAGE_BUCKET_NAME:
-        raise RuntimeError("AWS_STORAGE_BUCKET_NAME is required when USE_S3_MEDIA is enabled.")
-
-    AWS_DEFAULT_ACL = None
-    AWS_QUERYSTRING_AUTH = False
-    AWS_S3_FILE_OVERWRITE = False
-    AWS_S3_OBJECT_PARAMETERS = {
-        "CacheControl": "max-age=86400",
-    }
-
-    if AWS_S3_CUSTOM_DOMAIN:
-        MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/{AWS_MEDIA_LOCATION}/"
-    elif AWS_S3_ENDPOINT_URL:
-        MEDIA_URL = f"{AWS_S3_ENDPOINT_URL.rstrip('/')}/{AWS_STORAGE_BUCKET_NAME}/{AWS_MEDIA_LOCATION}/"
-    else:
-        region_suffix = f".{AWS_S3_REGION_NAME}" if AWS_S3_REGION_NAME else ""
-        MEDIA_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3{region_suffix}.amazonaws.com/{AWS_MEDIA_LOCATION}/"
-
-    STORAGES = {
-        "default": {
-            "BACKEND": "storages.backends.s3.S3Storage",
-            "OPTIONS": {
-                "access_key": AWS_ACCESS_KEY_ID or None,
-                "secret_key": AWS_SECRET_ACCESS_KEY or None,
-                "bucket_name": AWS_STORAGE_BUCKET_NAME,
-                "region_name": AWS_S3_REGION_NAME or None,
-                "endpoint_url": AWS_S3_ENDPOINT_URL,
-                "location": AWS_MEDIA_LOCATION,
-                "default_acl": AWS_DEFAULT_ACL,
-                "querystring_auth": AWS_QUERYSTRING_AUTH,
-                "file_overwrite": AWS_S3_FILE_OVERWRITE,
-                "object_parameters": AWS_S3_OBJECT_PARAMETERS,
-            },
-        },
-        "staticfiles": {
-            "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
-        },
-    }
-else:
-    STORAGES = {
-        "default": {
-            "BACKEND": "django.core.files.storage.FileSystemStorage",
-        },
-        "staticfiles": {
-            "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
-        },
-    }
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+    },
+}
 
 WHITENOISE_USE_FINDERS = True
 

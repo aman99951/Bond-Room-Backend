@@ -14,11 +14,13 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+from pathlib import Path
+
 from django.contrib import admin
 from django.conf import settings
-from django.conf.urls.static import static
-from django.http import JsonResponse
-from django.urls import include, path
+from django.http import Http404, JsonResponse
+from django.urls import include, path, re_path
+from django.views.static import serve
 from django.views.generic import TemplateView
 from rest_framework_simplejwt.views import TokenRefreshView
 
@@ -33,6 +35,23 @@ def api_root(_request):
     })
 
 
+def serve_media(request, path):
+    media_roots = [Path(settings.MEDIA_ROOT)]
+    media_roots.extend(Path(root) for root in getattr(settings, "MEDIA_FALLBACK_ROOTS", []))
+
+    for root in media_roots:
+        resolved_root = root.resolve()
+        candidate = (resolved_root / path).resolve()
+        try:
+            candidate.relative_to(resolved_root)
+        except ValueError:
+            continue
+        if candidate.is_file():
+            return serve(request, path, document_root=str(resolved_root))
+
+    raise Http404("Media file not found.")
+
+
 urlpatterns = [
     path('', api_root, name='api_root'),
     path('admin/', admin.site.urls),
@@ -44,5 +63,4 @@ urlpatterns = [
     path('api/', include('core.urls')),
 ]
 
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+urlpatterns.append(re_path(r'^media/(?P<path>.*)$', serve_media, name='media'))
