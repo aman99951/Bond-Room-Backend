@@ -98,6 +98,24 @@ class MentorSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
+        request = self.context.get("request")
+
+        profile_photo_url = ""
+        profile = getattr(instance, "profile", None)
+        if profile and getattr(profile, "profile_photo", None):
+            try:
+                profile_photo_url = profile.profile_photo.url or ""
+            except Exception:
+                profile_photo_url = ""
+
+        profile_photo_url = build_absolute_media_url(profile_photo_url, request=request)
+        if profile_photo_url:
+            data["profile_photo"] = profile_photo_url
+            data["avatar"] = profile_photo_url
+        else:
+            data["profile_photo"] = ""
+            data["avatar"] = build_absolute_media_url(data.get("avatar", ""), request=request)
+
         data["weekly_availability"] = data.get("availability") or []
         data["availability"] = MentorAvailabilitySlotSerializer(
             instance.availability_slots.all().order_by("start_time", "id"),
@@ -263,6 +281,12 @@ class MentorProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = MentorProfile
         fields = "__all__"
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        data["profile_photo"] = build_absolute_media_url(data.get("profile_photo", ""), request=request)
+        return data
 
 
 class SessionDispositionSerializer(serializers.ModelSerializer):
