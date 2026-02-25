@@ -105,6 +105,7 @@ class Session(models.Model):
     mentor_notes = models.TextField(blank=True)
     join_url = models.URLField(blank=True)
     host_join_url = models.URLField(blank=True)
+    mentor_joined_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
 
@@ -142,6 +143,7 @@ class SessionRecording(models.Model):
         Session, on_delete=models.CASCADE, related_name="recording"
     )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="not_started")
+    recording_file = models.FileField(upload_to="session_recordings/", blank=True, null=True)
     recording_url = models.URLField(blank=True)
     storage_key = models.CharField(max_length=255, blank=True)
     file_size_bytes = models.PositiveBigIntegerField(null=True, blank=True)

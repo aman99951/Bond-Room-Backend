@@ -1,6 +1,9 @@
+import json
+import os
 from datetime import timedelta
 from decimal import Decimal
 import re
+import urllib.request
 
 from django.contrib.auth import get_user_model
 from django.conf import settings
@@ -173,6 +176,112 @@ def mentee_snapshot_for_incident(session):
         "city_state": mentee.city_state,
         "timezone": mentee.timezone,
         "parent_mobile": mentee.parent_mobile,
+    }
+
+
+def parse_bool(value):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return False
+
+
+def generate_meeting_summary_with_openai(session, transcript):
+    api_key = settings.OPENAI_API_KEY
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY is not configured.")
+
+    transcript_text = str(transcript or "").strip()
+    if not transcript_text:
+        raise RuntimeError("Transcript is required for summary generation.")
+
+    model = (
+        os.environ.get("OPENAI_MEETING_SUMMARY_MODEL")
+        or os.environ.get("OPENAI_MODEL")
+        or "gpt-4o-mini"
+    )
+    transcript_excerpt = transcript_text[:120000]
+    prompt_payload = {
+        "session": {
+            "id": session.id,
+            "scheduled_start": session.scheduled_start.isoformat()
+            if session.scheduled_start
+            else "",
+            "scheduled_end": session.scheduled_end.isoformat() if session.scheduled_end else "",
+            "mentor_id": session.mentor_id,
+            "mentee_id": session.mentee_id,
+        },
+        "requirements": {
+            "language": "English",
+            "summary_length": "short",
+            "include_action_items": True,
+            "include_key_highlights": True,
+        },
+        "transcript": transcript_excerpt,
+        "output_schema": {
+            "summary": "string",
+            "highlights": ["string"],
+            "action_items": ["string"],
+        },
+    }
+    body = {
+        "model": model,
+        "text": {"format": {"type": "json_object"}},
+        "input": [
+            {
+                "role": "system",
+                "content": (
+                    "You summarize mentoring sessions. "
+                    "Return strict JSON only with keys summary, highlights, and action_items. "
+                    "Do not include markdown."
+                ),
+            },
+            {
+                "role": "user",
+                "content": json.dumps(prompt_payload),
+            },
+        ],
+    }
+    request = urllib.request.Request(
+        "https://api.openai.com/v1/responses",
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+
+    output_text = payload.get("output_text", "") or ""
+    if not output_text:
+        parts = []
+        for item in payload.get("output", []):
+            for content in item.get("content", []):
+                if content.get("type") == "output_text":
+                    parts.append(content.get("text", ""))
+        output_text = "".join(parts).strip()
+
+    parsed = {}
+    if output_text:
+        try:
+            parsed = json.loads(output_text)
+        except json.JSONDecodeError:
+            parsed = {"summary": output_text}
+
+    summary = str(parsed.get("summary", "")).strip()
+    if not summary:
+        raise RuntimeError("OpenAI did not return a valid summary.")
+    highlights = parsed.get("highlights")
+    action_items = parsed.get("action_items")
+    return {
+        "summary": summary,
+        "highlights": highlights if isinstance(highlights, list) else [],
+        "action_items": action_items if isinstance(action_items, list) else [],
+        "model": model,
     }
 
 
@@ -1278,7 +1387,48 @@ class SessionViewSet(viewsets.ModelViewSet):
         session = self.get_object()
         if user_role(request.user) == ROLE_MENTOR and session.mentor_id != current_mentor_id(request):
             raise PermissionDenied("You can only access mentee profiles for your own sessions.")
-        return Response(MenteeSerializer(session.mentee, context={"request": request}).data)
+        mentee_data = MenteeSerializer(session.mentee, context={"request": request}).data
+
+        latest_request = (
+            MenteeRequest.objects.filter(mentee_id=session.mentee_id)
+            .order_by("-created_at", "-id")
+            .first()
+        )
+        preferences = MenteePreferences.objects.filter(mentee_id=session.mentee_id).first()
+
+        mentee_data["latest_assessment"] = (
+            {
+                "id": latest_request.id,
+                "feeling": latest_request.feeling,
+                "feeling_cause": latest_request.feeling_cause,
+                "support_type": latest_request.support_type,
+                "comfort_level": latest_request.comfort_level,
+                "topics": latest_request.topics or [],
+                "preferred_times": latest_request.preferred_times or [],
+                "preferred_format": latest_request.preferred_format,
+                "language": latest_request.language,
+                "timezone": latest_request.timezone,
+                "session_mode": latest_request.session_mode,
+                "access_needs": latest_request.access_needs,
+                "safety_notes": latest_request.safety_notes,
+                "free_text": latest_request.free_text,
+                "created_at": latest_request.created_at,
+            }
+            if latest_request
+            else None
+        )
+        mentee_data["assessment_preferences"] = (
+            {
+                "comfort_level": preferences.comfort_level,
+                "preferred_session_minutes": preferences.preferred_session_minutes,
+                "preferred_mentor_types": preferences.preferred_mentor_types or [],
+                "updated_at": preferences.updated_at,
+            }
+            if preferences
+            else None
+        )
+
+        return Response(mentee_data)
 
     def perform_create(self, serializer):
         role = user_role(self.request.user)
@@ -1307,9 +1457,14 @@ class SessionViewSet(viewsets.ModelViewSet):
             return Response({"detail": "Session not approved yet."}, status=status.HTTP_400_BAD_REQUEST)
         role_paths = build_role_meeting_paths(session.id)
         meeting_path = build_meeting_room_path(session.id, participant_role)
+        update_fields = {
+            "join_url": role_paths["mentee"],
+            "host_join_url": role_paths["mentor"],
+        }
+        if participant_role == "mentor":
+            update_fields["mentor_joined_at"] = timezone.now()
         Session.objects.filter(id=session.id).update(
-            join_url=role_paths["mentee"],
-            host_join_url=role_paths["mentor"],
+            **update_fields,
         )
         return Response(
             {
@@ -1317,6 +1472,7 @@ class SessionViewSet(viewsets.ModelViewSet):
                 "meeting_url": meeting_path,
                 "join_url": role_paths["mentee"],
                 "host_join_url": role_paths["mentor"],
+                "mentor_joined_at": update_fields.get("mentor_joined_at"),
                 "room_key": f"session-{session.id}",
             }
         )
@@ -1342,9 +1498,9 @@ class SessionViewSet(viewsets.ModelViewSet):
             return Response(serializer.data)
 
         signal_type = str(request.data.get("signal_type", "")).strip().lower()
-        if signal_type not in {"offer", "answer", "ice", "bye"}:
+        if signal_type not in {"offer", "answer", "ice", "bye", "media_state"}:
             return Response(
-                {"detail": "signal_type must be one of: offer, answer, ice, bye."},
+                {"detail": "signal_type must be one of: offer, answer, ice, bye, media_state."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         payload = request.data.get("payload") or {}
@@ -1362,11 +1518,15 @@ class SessionViewSet(viewsets.ModelViewSet):
             status=status.HTTP_201_CREATED,
         )
 
-    @action(detail=True, methods=["post"], url_path="recording")
+    @action(detail=True, methods=["get", "post"], url_path="recording")
     def recording(self, request, pk=None):
         session = self.get_object()
-        require_role(request, {ROLE_MENTOR, ROLE_ADMIN})
         resolve_session_participant_role(request, session)
+        recording, _ = SessionRecording.objects.get_or_create(session=session)
+        if request.method == "GET":
+            return Response(SessionRecordingSerializer(recording, context={"request": request}).data)
+
+        require_role(request, {ROLE_MENTOR, ROLE_ADMIN})
         status_value = str(request.data.get("status", "")).strip().lower()
         if status_value not in {"not_started", "recording", "stopped", "uploaded", "failed"}:
             return Response(
@@ -1374,11 +1534,15 @@ class SessionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        recording, _ = SessionRecording.objects.get_or_create(session=session)
         recording.status = status_value
         recording.recording_url = str(request.data.get("recording_url", recording.recording_url or "")).strip()
         recording.storage_key = str(request.data.get("storage_key", recording.storage_key or "")).strip()
         file_size = request.data.get("file_size_bytes")
+        uploaded_file = request.FILES.get("recording_file") or request.data.get("recording_file")
+        if uploaded_file:
+            recording.recording_file = uploaded_file
+            if not file_size and getattr(uploaded_file, "size", None) not in (None, ""):
+                recording.file_size_bytes = int(uploaded_file.size)
         if file_size not in (None, ""):
             try:
                 recording.file_size_bytes = int(file_size)
@@ -1389,9 +1553,23 @@ class SessionViewSet(viewsets.ModelViewSet):
                 )
         metadata = request.data.get("metadata")
         if metadata is not None:
+            if isinstance(metadata, str):
+                metadata_raw = metadata.strip()
+                if metadata_raw:
+                    try:
+                        metadata = json.loads(metadata_raw)
+                    except json.JSONDecodeError:
+                        return Response(
+                            {"detail": "metadata must be a valid JSON object."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                else:
+                    metadata = {}
             if not isinstance(metadata, dict):
                 return Response({"detail": "metadata must be an object."}, status=status.HTTP_400_BAD_REQUEST)
-            recording.metadata = metadata
+            merged_metadata = dict(recording.metadata or {})
+            merged_metadata.update(metadata)
+            recording.metadata = merged_metadata
 
         if status_value == "recording" and not recording.started_at:
             recording.started_at = timezone.now()
@@ -1399,6 +1577,22 @@ class SessionViewSet(viewsets.ModelViewSet):
             recording.ended_at = timezone.now()
 
         recording.save()
+        if recording.recording_file:
+            next_storage_key = str(recording.recording_file.name or "").strip()
+            next_recording_url = build_absolute_media_url(recording.recording_file.url, request=request)
+            needs_update = False
+            update_fields = []
+            if next_storage_key and recording.storage_key != next_storage_key:
+                recording.storage_key = next_storage_key
+                update_fields.append("storage_key")
+                needs_update = True
+            if next_recording_url and recording.recording_url != next_recording_url:
+                recording.recording_url = next_recording_url
+                update_fields.append("recording_url")
+                needs_update = True
+            if needs_update:
+                update_fields.append("updated_at")
+                recording.save(update_fields=update_fields)
         return Response(SessionRecordingSerializer(recording, context={"request": request}).data)
 
     @action(detail=True, methods=["post"], url_path="analyze-transcript")
@@ -1407,6 +1601,7 @@ class SessionViewSet(viewsets.ModelViewSet):
         require_role(request, {ROLE_MENTOR, ROLE_ADMIN})
         participant_role = resolve_session_participant_role(request, session)
         transcript = str(request.data.get("transcript", "")).strip()
+        generate_summary = parse_bool(request.data.get("generate_summary"))
         speaker_role = str(request.data.get("speaker_role", participant_role)).strip().lower() or participant_role
         if speaker_role not in {"mentee", "mentor", "admin", "system", "unknown"}:
             speaker_role = "unknown"
@@ -1428,6 +1623,32 @@ class SessionViewSet(viewsets.ModelViewSet):
                 detection_notes=str(request.data.get("notes", "")).strip(),
             )
 
+        summary_payload = None
+        summary_error = ""
+        if generate_summary:
+            if not transcript:
+                return Response(
+                    {"detail": "transcript is required when generate_summary is true."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            try:
+                summary_payload = generate_meeting_summary_with_openai(session, transcript)
+                recording, _ = SessionRecording.objects.get_or_create(session=session)
+                merged_metadata = dict(recording.metadata or {})
+                merged_metadata.update(
+                    {
+                        "meeting_summary": summary_payload.get("summary", ""),
+                        "meeting_highlights": summary_payload.get("highlights", []),
+                        "meeting_action_items": summary_payload.get("action_items", []),
+                        "summary_generated_at": timezone.now().isoformat(),
+                        "summary_model": summary_payload.get("model", ""),
+                    }
+                )
+                recording.metadata = merged_metadata
+                recording.save(update_fields=["metadata", "updated_at"])
+            except Exception as exc:
+                summary_error = str(exc)
+
         role = user_role(request.user)
         return Response(
             {
@@ -1437,6 +1658,12 @@ class SessionViewSet(viewsets.ModelViewSet):
                 "matched_terms": analysis["matches"],
                 "incident_id": incident.id if incident else None,
                 "flagged_mentee_info": snapshot if role in {ROLE_ADMIN, ROLE_MENTOR} else {},
+                "summary_generated": bool(summary_payload),
+                "summary": summary_payload.get("summary", "") if summary_payload else "",
+                "highlights": summary_payload.get("highlights", []) if summary_payload else [],
+                "action_items": summary_payload.get("action_items", []) if summary_payload else [],
+                "summary_model": summary_payload.get("model", "") if summary_payload else "",
+                "summary_error": summary_error,
             }
         )
 
