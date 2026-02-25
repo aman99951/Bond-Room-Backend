@@ -68,4 +68,5 @@ urlpatterns = [
     path('api/', include('core.urls')),
 ]
 
-urlpatterns.append(re_path(r'^media/(?P<path>.*)$', serve_media, name='media'))
+if not getattr(settings, "USE_CLOUDINARY_MEDIA", False):
+    urlpatterns.append(re_path(r'^media/(?P<path>.*)$', serve_media, name='media'))

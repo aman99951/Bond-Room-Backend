@@ -242,24 +242,55 @@ STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+CLOUDINARY_CLOUD_NAME = os.environ.get("CLOUDINARY_CLOUD_NAME", "").strip()
+CLOUDINARY_API_KEY = os.environ.get("CLOUDINARY_API_KEY", "").strip()
+CLOUDINARY_API_SECRET = os.environ.get("CLOUDINARY_API_SECRET", "").strip()
+CLOUDINARY_FOLDER = os.environ.get("CLOUDINARY_FOLDER", "bond-room").strip().strip("/")
+cloudinary_secure_value = os.environ.get("CLOUDINARY_SECURE", "true").strip().lower()
+CLOUDINARY_SECURE = cloudinary_secure_value not in {"0", "false", "no"}
+USE_CLOUDINARY_MEDIA = bool(
+    CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET
+)
 
-if PUBLIC_BASE_URL:
+if PUBLIC_BASE_URL and not USE_CLOUDINARY_MEDIA:
     MEDIA_URL = f"{PUBLIC_BASE_URL.rstrip('/')}/media/"
 
 # Vercel serverless functions use a read-only deployment filesystem.
 # Keep media writes in /tmp.
-if os.environ.get("VERCEL", "").strip():
+if os.environ.get("VERCEL", "").strip() and not USE_CLOUDINARY_MEDIA:
     MEDIA_ROOT = Path("/tmp/media")
     MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
 
-STORAGES = {
-    "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
-    },
-    "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
-    },
-}
+if USE_CLOUDINARY_MEDIA:
+    for app_name in ("cloudinary", "cloudinary_storage"):
+        if app_name not in INSTALLED_APPS:
+            INSTALLED_APPS.append(app_name)
+
+    CLOUDINARY_STORAGE = {
+        "CLOUD_NAME": CLOUDINARY_CLOUD_NAME,
+        "API_KEY": CLOUDINARY_API_KEY,
+        "API_SECRET": CLOUDINARY_API_SECRET,
+        "SECURE": CLOUDINARY_SECURE,
+        "FOLDER": CLOUDINARY_FOLDER or "bond-room",
+    }
+
+    STORAGES = {
+        "default": {
+            "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+        },
+    }
+else:
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+        },
+    }
 
 WHITENOISE_USE_FINDERS = True
 
