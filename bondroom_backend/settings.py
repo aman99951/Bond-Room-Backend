@@ -242,18 +242,13 @@ STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
-MEDIA_FALLBACK_ROOTS = []
 
 if PUBLIC_BASE_URL:
     MEDIA_URL = f"{PUBLIC_BASE_URL.rstrip('/')}/media/"
 
 # Vercel serverless functions use a read-only deployment filesystem.
 # Keep media writes in /tmp.
-# Read checked-in media files from the bundled deployment directory.
 if os.environ.get("VERCEL", "").strip():
-    bundled_media_root = BASE_DIR / "media"
-    if bundled_media_root.exists():
-        MEDIA_FALLBACK_ROOTS.append(bundled_media_root)
     MEDIA_ROOT = Path("/tmp/media")
     MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
 
