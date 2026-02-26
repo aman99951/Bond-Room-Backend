@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from datetime import timedelta
 from decimal import Decimal
 import re
@@ -113,6 +114,11 @@ from .quiz import (
 )
 from .abuse_monitoring import classify_abuse
 from .signals import generate_recommendations_for_request
+
+try:
+    from cloudinary.utils import api_sign_request
+except Exception:
+    api_sign_request = None
 
 TRAINING_QUIZ_PASS_MARK = 7
 User = get_user_model()
@@ -1626,6 +1632,47 @@ class SessionViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
         return Response(SessionRecordingSerializer(recording, context={"request": request}).data)
+
+    @action(detail=True, methods=["post"], url_path="recording-upload-signature")
+    def recording_upload_signature(self, request, pk=None):
+        session = self.get_object()
+        resolve_session_participant_role(request, session)
+        require_role(request, {ROLE_MENTOR, ROLE_ADMIN})
+
+        cloud_name = str(getattr(settings, "CLOUDINARY_CLOUD_NAME", "") or "").strip()
+        api_key = str(getattr(settings, "CLOUDINARY_API_KEY", "") or "").strip()
+        api_secret = str(getattr(settings, "CLOUDINARY_API_SECRET", "") or "").strip()
+        folder = str(getattr(settings, "CLOUDINARY_FOLDER", "bond-room") or "bond-room").strip().strip("/")
+
+        if not cloud_name or not api_key or not api_secret or not api_sign_request:
+            return Response(
+                {"detail": "Cloudinary signing is not configured on backend."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        timestamp = int(time.time())
+        public_id = f"session-{session.id}-{timestamp}"
+        params_to_sign = {
+            "folder": folder,
+            "public_id": public_id,
+            "timestamp": timestamp,
+        }
+        signature = api_sign_request(params_to_sign, api_secret)
+        upload_url = f"https://api.cloudinary.com/v1_1/{cloud_name}/video/upload"
+
+        return Response(
+            {
+                "provider": "cloudinary",
+                "resource_type": "video",
+                "upload_url": upload_url,
+                "cloud_name": cloud_name,
+                "api_key": api_key,
+                "timestamp": timestamp,
+                "folder": folder,
+                "public_id": public_id,
+                "signature": signature,
+            }
+        )
 
     @action(detail=True, methods=["post"], url_path="analyze-transcript")
     def analyze_transcript(self, request, pk=None):

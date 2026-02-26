@@ -57,6 +57,7 @@ POST_ONLY_AUTHENTICATED_PATHS = {
     "/api/sessions/{id}/join-link/",
     "/api/sessions/{id}/analyze-transcript/",
     "/api/sessions/{id}/recording/",
+    "/api/sessions/{id}/recording-upload-signature/",
     "/api/training-modules/{id}/watch-video/",
     "/api/training-modules/quiz/start/",
     "/api/training-modules/quiz/submit/",
@@ -338,6 +339,7 @@ class ApiAutomationCoverageTests(APITestCase):
             "/api/sessions/{id}/join-link/": self.session.id,
             "/api/sessions/{id}/meeting-signals/": self.session.id,
             "/api/sessions/{id}/recording/": self.session.id,
+            "/api/sessions/{id}/recording-upload-signature/": self.session.id,
             "/api/sessions/{id}/analyze-transcript/": self.session.id,
             "/api/sessions/{id}/abuse-incidents/": self.session.id,
             "/api/sessions/{id}/mentee-profile/": self.session.id,
@@ -461,6 +463,8 @@ class ApiAutomationCoverageTests(APITestCase):
             return {"signal_type": "offer", "payload": {"sdp": "seed"}}
         if schema_path == "/api/sessions/{id}/recording/":
             return {"status": "recording", "metadata": {"source": "automation"}}
+        if schema_path == "/api/sessions/{id}/recording-upload-signature/":
+            return {}
         if schema_path == "/api/sessions/{id}/analyze-transcript/":
             return {"transcript": "you are stupid", "speaker_role": "mentee"}
         if schema_path == "/api/training-modules/{id}/watch-video/":
@@ -580,6 +584,9 @@ class ApiAutomationCoverageTests(APITestCase):
         return client_method(path, format="json")
 
     def _expected_positive_status(self, schema_path):
+        if schema_path == "/api/sessions/{id}/recording-upload-signature/":
+            # Local/test environments may intentionally omit Cloudinary credentials.
+            return {200, 503}
         if schema_path in REGISTER_PATHS or schema_path in CREATED_PATHS:
             return {201}
         return {200}
