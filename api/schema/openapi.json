@@ -1745,6 +1745,11 @@
           "mentor": {
             "type": "integer"
           },
+          "mentor_joined_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
           "mentor_notes": {
             "type": "string"
           },
@@ -7450,6 +7455,36 @@
       }
     },
     "/api/sessions/{id}/recording/": {
+      "get": {
+        "description": "",
+        "operationId": "recordingSessionGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this session.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
       "post": {
         "description": "",
         "operationId": "recordingSessionPost",
