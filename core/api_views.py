@@ -1539,6 +1539,20 @@ class SessionViewSet(viewsets.ModelViewSet):
         recording.storage_key = str(request.data.get("storage_key", recording.storage_key or "")).strip()
         file_size = request.data.get("file_size_bytes")
         uploaded_file = request.FILES.get("recording_file") or request.data.get("recording_file")
+        running_on_vercel = bool(os.environ.get("VERCEL", "").strip())
+        using_cloudinary = bool(getattr(settings, "USE_CLOUDINARY_MEDIA", False))
+        if uploaded_file and running_on_vercel and not using_cloudinary:
+            return Response(
+                {
+                    "detail": (
+                        "recording_file upload is not supported on this deployment "
+                        "without cloud media storage. Configure CLOUDINARY_* env vars, "
+                        "or send recording_url/storage_key instead."
+                    )
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
         if uploaded_file:
             recording.recording_file = uploaded_file
             if not file_size and getattr(uploaded_file, "size", None) not in (None, ""):
@@ -1576,23 +1590,41 @@ class SessionViewSet(viewsets.ModelViewSet):
         if status_value in {"stopped", "uploaded", "failed"}:
             recording.ended_at = timezone.now()
 
-        recording.save()
+        try:
+            recording.save()
+        except Exception as exc:
+            return Response(
+                {
+                    "detail": "Unable to persist recording update.",
+                    "error": str(exc) if settings.DEBUG else "Check server media storage configuration.",
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
         if recording.recording_file:
-            next_storage_key = str(recording.recording_file.name or "").strip()
-            next_recording_url = build_absolute_media_url(recording.recording_file.url, request=request)
-            needs_update = False
-            update_fields = []
-            if next_storage_key and recording.storage_key != next_storage_key:
-                recording.storage_key = next_storage_key
-                update_fields.append("storage_key")
-                needs_update = True
-            if next_recording_url and recording.recording_url != next_recording_url:
-                recording.recording_url = next_recording_url
-                update_fields.append("recording_url")
-                needs_update = True
-            if needs_update:
-                update_fields.append("updated_at")
-                recording.save(update_fields=update_fields)
+            try:
+                next_storage_key = str(recording.recording_file.name or "").strip()
+                next_recording_url = build_absolute_media_url(recording.recording_file.url, request=request)
+                needs_update = False
+                update_fields = []
+                if next_storage_key and recording.storage_key != next_storage_key:
+                    recording.storage_key = next_storage_key
+                    update_fields.append("storage_key")
+                    needs_update = True
+                if next_recording_url and recording.recording_url != next_recording_url:
+                    recording.recording_url = next_recording_url
+                    update_fields.append("recording_url")
+                    needs_update = True
+                if needs_update:
+                    update_fields.append("updated_at")
+                    recording.save(update_fields=update_fields)
+            except Exception as exc:
+                return Response(
+                    {
+                        "detail": "Recording metadata saved, but file URL resolution failed.",
+                        "error": str(exc) if settings.DEBUG else "Check media storage URL configuration.",
+                    },
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
         return Response(SessionRecordingSerializer(recording, context={"request": request}).data)
 
     @action(detail=True, methods=["post"], url_path="analyze-transcript")
