@@ -322,6 +322,7 @@ required_cors_origins = [
     "http://localhost:4173",
     "http://127.0.0.1:4173",
     "https://bond-room.vercel.app",
+    "https://bond-room.onrender.com",
     "https://bond-room-dev.vercel.app",
     "https://bond-room-dev-git-dev-aman-kumars-projects-f277e079.vercel.app",
     
