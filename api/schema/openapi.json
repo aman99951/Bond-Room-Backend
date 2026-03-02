@@ -1731,6 +1731,11 @@
             "readOnly": true,
             "type": "string"
           },
+          "mentee_joined_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
           "mentee_last_name": {
             "readOnly": true,
             "type": "string"
