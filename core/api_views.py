@@ -1469,6 +1469,8 @@ class SessionViewSet(viewsets.ModelViewSet):
         }
         if participant_role == "mentor":
             update_fields["mentor_joined_at"] = timezone.now()
+        elif participant_role == "mentee":
+            update_fields["mentee_joined_at"] = timezone.now()
         Session.objects.filter(id=session.id).update(
             **update_fields,
         )
@@ -1479,6 +1481,7 @@ class SessionViewSet(viewsets.ModelViewSet):
                 "join_url": role_paths["mentee"],
                 "host_join_url": role_paths["mentor"],
                 "mentor_joined_at": update_fields.get("mentor_joined_at"),
+                "mentee_joined_at": update_fields.get("mentee_joined_at"),
                 "room_key": f"session-{session.id}",
             }
         )

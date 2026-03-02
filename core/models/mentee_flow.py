@@ -106,6 +106,7 @@ class Session(models.Model):
     join_url = models.URLField(blank=True)
     host_join_url = models.URLField(blank=True)
     mentor_joined_at = models.DateTimeField(null=True, blank=True)
+    mentee_joined_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
 
