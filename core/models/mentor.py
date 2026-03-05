@@ -11,6 +11,8 @@ class Mentor(models.Model):
         ('English', 'English'),
         ('Telugu', 'Telugu'),
         ('Kannada', 'Kannada'),
+        ('Malayalam', 'Malayalam'),
+        ('Hindi', 'Hindi'),
     ]
     CARE_AREA_CHOICES = [
         ('Anxiety', 'Anxiety'),

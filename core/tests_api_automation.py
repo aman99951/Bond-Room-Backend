@@ -414,7 +414,7 @@ class ApiAutomationCoverageTests(APITestCase):
                 "last_name": "Mentor",
                 "email": f"auto-mentor-{unique_token}@example.com",
                 "mobile": "+910000000002",
-                "dob": "1995-03-01",
+                "dob": "1975-03-01",
                 "gender": "Male",
                 "city_state": "Chennai",
                 "languages": ["English"],

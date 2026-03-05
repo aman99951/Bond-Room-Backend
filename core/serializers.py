@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import date, timedelta
 from hashlib import sha256
 from random import randint
 
@@ -50,6 +50,23 @@ def hash_otp(otp: str) -> str:
 
 def otp_expiry(minutes: int = 5):
     return timezone.now() + timedelta(minutes=minutes)
+
+
+def _age_in_years(dob: date, today=None) -> int:
+    reference = today or timezone.localdate()
+    age = reference.year - dob.year
+    if (reference.month, reference.day) < (dob.month, dob.day):
+        age -= 1
+    return age
+
+
+def _validate_age_range(dob: date, *, min_age: int, max_age: int, role_label: str) -> date:
+    age = _age_in_years(dob)
+    if age < min_age or age > max_age:
+        raise serializers.ValidationError(
+            f"{role_label} age must be between {min_age} and {max_age} years."
+        )
+    return dob
 
 
 def ensure_username(base: str) -> str:
@@ -352,6 +369,9 @@ class MenteeRegisterSerializer(serializers.Serializer):
     record_consent = serializers.BooleanField(required=False, default=False)
     password = serializers.CharField(required=False, allow_blank=True, write_only=True)
 
+    def validate_dob(self, value):
+        return _validate_age_range(value, min_age=13, max_age=18, role_label="Student")
+
     def create(self, validated_data):
         password = validated_data.pop("password", "")
         email = validated_data["email"]
@@ -392,6 +412,9 @@ class MentorRegisterSerializer(serializers.Serializer):
     avatar = serializers.URLField(required=False, allow_blank=True)
     consent = serializers.BooleanField(required=False, default=False)
     password = serializers.CharField(required=False, allow_blank=True, write_only=True)
+
+    def validate_dob(self, value):
+        return _validate_age_range(value, min_age=45, max_age=60, role_label="Mentor")
 
     def create(self, validated_data):
         password = validated_data.pop("password", "")

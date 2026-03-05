@@ -587,6 +587,69 @@ class MentorContactVerificationStatusTests(APITestCase):
         self.assertEqual(onboarding.contact_status, "completed")
 
 
+class RegistrationAgeValidationTests(APITestCase):
+    @staticmethod
+    def years_ago(years):
+        today = timezone.localdate()
+        try:
+            return today.replace(year=today.year - years)
+        except ValueError:
+            # Handle leap-day edge cases in a deterministic way.
+            return today.replace(year=today.year - years, day=28)
+
+    def test_mentee_registration_rejects_age_outside_13_to_18(self):
+        payload = {
+            "first_name": "Young",
+            "last_name": "Student",
+            "grade": "10th Grade",
+            "email": "young.student@test.com",
+            "dob": self.years_ago(12).isoformat(),
+            "gender": "Female",
+        }
+        response = self.client.post("/api/auth/register/mentee/", payload, format="json")
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("dob", response.data)
+
+    def test_mentor_registration_rejects_age_outside_45_to_60(self):
+        payload = {
+            "first_name": "Early",
+            "last_name": "Mentor",
+            "email": "early.mentor@test.com",
+            "mobile": "+911234500999",
+            "dob": self.years_ago(30).isoformat(),
+            "gender": "Male",
+            "city_state": "Chennai",
+        }
+        response = self.client.post("/api/auth/register/mentor/", payload, format="json")
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("dob", response.data)
+
+    def test_mentee_registration_accepts_boundary_age_13(self):
+        payload = {
+            "first_name": "Boundary",
+            "last_name": "Teen",
+            "grade": "11th Grade",
+            "email": "boundary.teen@test.com",
+            "dob": self.years_ago(13).isoformat(),
+            "gender": "Female",
+        }
+        response = self.client.post("/api/auth/register/mentee/", payload, format="json")
+        self.assertEqual(response.status_code, 201, response.data)
+
+    def test_mentor_registration_accepts_boundary_age_45(self):
+        payload = {
+            "first_name": "Boundary",
+            "last_name": "Guide",
+            "email": "boundary.guide@test.com",
+            "mobile": "+911234501000",
+            "dob": self.years_ago(45).isoformat(),
+            "gender": "Male",
+            "city_state": "Chennai",
+        }
+        response = self.client.post("/api/auth/register/mentor/", payload, format="json")
+        self.assertEqual(response.status_code, 201, response.data)
+
+
 class PayoutSettlementTests(APITestCase):
     @classmethod
     def setUpTestData(cls):
