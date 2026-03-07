@@ -981,12 +981,19 @@
             ],
             "type": "string"
           },
+          "email": {
+            "format": "email",
+            "type": "string"
+          },
           "mentor_id": {
             "type": "integer"
+          },
+          "mobile": {
+            "maxLength": 20,
+            "type": "string"
           }
         },
         "required": [
-          "mentor_id",
           "channel"
         ],
         "type": "object"
@@ -1000,8 +1007,16 @@
             ],
             "type": "string"
           },
+          "email": {
+            "format": "email",
+            "type": "string"
+          },
           "mentor_id": {
             "type": "integer"
+          },
+          "mobile": {
+            "maxLength": 20,
+            "type": "string"
           },
           "otp": {
             "maxLength": 6,
@@ -1009,7 +1024,6 @@
           }
         },
         "required": [
-          "mentor_id",
           "channel",
           "otp"
         ],
@@ -1311,6 +1325,10 @@
             "format": "email",
             "type": "string"
           },
+          "email_verified": {
+            "default": false,
+            "type": "boolean"
+          },
           "first_name": {
             "maxLength": 100,
             "type": "string"
@@ -1332,6 +1350,9 @@
             "maxLength": 100,
             "type": "string"
           },
+          "mentor_id": {
+            "type": "integer"
+          },
           "mobile": {
             "maxLength": 20,
             "type": "string"
@@ -1339,6 +1360,10 @@
           "password": {
             "type": "string",
             "writeOnly": true
+          },
+          "phone_verified": {
+            "default": false,
+            "type": "boolean"
           },
           "preferred_formats": {
             "items": {
