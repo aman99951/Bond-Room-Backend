@@ -8,6 +8,7 @@ import urllib.request
 
 from django.contrib.auth import get_user_model
 from django.conf import settings
+from django.core.cache import cache
 from django.db import transaction
 from django.db.models import Avg, Count, Q, Sum
 from django.contrib.auth.models import update_last_login
@@ -293,6 +294,15 @@ def generate_meeting_summary_with_openai(session, transcript):
 
 def normalize_mobile(value):
     return "".join(ch for ch in str(value or "") if ch.isdigit())
+
+
+def normalize_email(value):
+    return str(value or "").strip().lower()
+
+
+def mentor_contact_cache_key(channel, value):
+    normalized = normalize_email(value) if channel == "email" else normalize_mobile(value)
+    return f"mentor-contact:{channel}:{normalized}"
 
 
 def get_user_role_value(user):
@@ -684,27 +694,55 @@ class MentorContactSendOtpView(GenericAPIView):
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        mentor = Mentor.objects.filter(id=serializer.validated_data["mentor_id"]).first()
-        if not mentor:
-            return Response({"detail": "Mentor not found."}, status=status.HTTP_404_NOT_FOUND)
+        mentor = None
+        mentor_id = serializer.validated_data.get("mentor_id")
+        if mentor_id:
+            mentor = Mentor.objects.filter(id=mentor_id).first()
+            if not mentor:
+                return Response({"detail": "Mentor not found."}, status=status.HTTP_404_NOT_FOUND)
 
         otp = (settings.MENTOR_TEST_OTP or "").strip() or generate_otp()
         channel = serializer.validated_data["channel"]
-        verification, _ = MentorContactVerification.objects.get_or_create(mentor=mentor)
         now = timezone.now()
         expiry = otp_expiry()
         otp_hash = hash_otp(otp)
-        if channel == "email":
-            verification.email_otp_hash = otp_hash
-            verification.email_otp_sent_at = now
-            verification.email_otp_expires_at = expiry
-            verification.email_otp_attempts = 0
+
+        if mentor:
+            verification, _ = MentorContactVerification.objects.get_or_create(mentor=mentor)
+            if channel == "email":
+                verification.email_otp_hash = otp_hash
+                verification.email_otp_sent_at = now
+                verification.email_otp_expires_at = expiry
+                verification.email_otp_attempts = 0
+            else:
+                verification.phone_otp_hash = otp_hash
+                verification.phone_otp_sent_at = now
+                verification.phone_otp_expires_at = expiry
+                verification.phone_otp_attempts = 0
+            verification.save()
         else:
-            verification.phone_otp_hash = otp_hash
-            verification.phone_otp_sent_at = now
-            verification.phone_otp_expires_at = expiry
-            verification.phone_otp_attempts = 0
-        verification.save()
+            if channel == "email":
+                email = serializer.validated_data["email"]
+                if Mentor.objects.filter(email__iexact=email).exists() or User.objects.filter(email__iexact=email).exists():
+                    return Response(
+                        {"email": "This email is already registered."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                cache_key = mentor_contact_cache_key(channel, email)
+            else:
+                mobile = serializer.validated_data["mobile"]
+                if find_mentor_by_mobile(mobile):
+                    return Response(
+                        {"mobile": "This mobile number is already registered."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                cache_key = mentor_contact_cache_key(channel, mobile)
+
+            cache.set(
+                cache_key,
+                {"otp_hash": otp_hash, "expires_at": expiry.isoformat()},
+                timeout=5 * 60,
+            )
         return Response(
             {
                 "message": f"{channel.title()} OTP sent successfully.",
@@ -721,42 +759,71 @@ class MentorContactVerifyOtpView(GenericAPIView):
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        mentor = Mentor.objects.filter(id=serializer.validated_data["mentor_id"]).first()
-        if not mentor:
-            return Response({"detail": "Mentor not found."}, status=status.HTTP_404_NOT_FOUND)
-        verification = MentorContactVerification.objects.filter(mentor=mentor).first()
-        if not verification:
-            return Response(
-                {"detail": "OTP was not requested for this mentor."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
         channel = serializer.validated_data["channel"]
         otp_hash = hash_otp(serializer.validated_data["otp"])
         now = timezone.now()
-        if channel == "email":
-            if verification.email_otp_expires_at and verification.email_otp_expires_at < now:
-                return Response({"detail": "OTP expired."}, status=status.HTTP_400_BAD_REQUEST)
-            if otp_hash != verification.email_otp_hash:
-                verification.email_otp_attempts += 1
-                verification.save(update_fields=["email_otp_attempts"])
-                return Response({"detail": "Invalid OTP."}, status=status.HTTP_400_BAD_REQUEST)
-            verification.email_verified = True
-            verification.email_verified_at = now
-            verification.save(update_fields=["email_verified", "email_verified_at"])
+        mentor = None
+        mentor_id = serializer.validated_data.get("mentor_id")
+
+        if mentor_id:
+            mentor = Mentor.objects.filter(id=mentor_id).first()
+            if not mentor:
+                return Response({"detail": "Mentor not found."}, status=status.HTTP_404_NOT_FOUND)
+            verification = MentorContactVerification.objects.filter(mentor=mentor).first()
+            if not verification:
+                return Response(
+                    {"detail": "OTP was not requested for this mentor."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if channel == "email":
+                if verification.email_otp_expires_at and verification.email_otp_expires_at < now:
+                    return Response({"detail": "OTP expired."}, status=status.HTTP_400_BAD_REQUEST)
+                if otp_hash != verification.email_otp_hash:
+                    verification.email_otp_attempts += 1
+                    verification.save(update_fields=["email_otp_attempts"])
+                    return Response({"detail": "Invalid OTP."}, status=status.HTTP_400_BAD_REQUEST)
+                verification.email_verified = True
+                verification.email_verified_at = now
+                verification.save(update_fields=["email_verified", "email_verified_at"])
+            else:
+                if verification.phone_otp_expires_at and verification.phone_otp_expires_at < now:
+                    return Response({"detail": "OTP expired."}, status=status.HTTP_400_BAD_REQUEST)
+                if otp_hash != verification.phone_otp_hash:
+                    verification.phone_otp_attempts += 1
+                    verification.save(update_fields=["phone_otp_attempts"])
+                    return Response({"detail": "Invalid OTP."}, status=status.HTTP_400_BAD_REQUEST)
+                verification.phone_verified = True
+                verification.phone_verified_at = now
+                verification.save(update_fields=["phone_verified", "phone_verified_at"])
+                onboarding, _ = MentorOnboardingStatus.objects.get_or_create(mentor=mentor)
+                if onboarding.contact_status != "completed":
+                    onboarding.contact_status = "completed"
+                    onboarding.save(update_fields=["contact_status", "updated_at", "current_status"])
         else:
-            if verification.phone_otp_expires_at and verification.phone_otp_expires_at < now:
+            contact_value = (
+                serializer.validated_data.get("email")
+                if channel == "email"
+                else serializer.validated_data.get("mobile")
+            )
+            cache_key = mentor_contact_cache_key(channel, contact_value)
+            cached_value = cache.get(cache_key)
+            if not cached_value:
+                return Response({"detail": "OTP was not requested for this contact."}, status=status.HTTP_400_BAD_REQUEST)
+
+            expires_at_raw = cached_value.get("expires_at")
+            try:
+                expires_at = timezone.datetime.fromisoformat(expires_at_raw)
+                if timezone.is_naive(expires_at):
+                    expires_at = timezone.make_aware(expires_at, timezone.get_current_timezone())
+            except Exception:
+                expires_at = None
+
+            if expires_at and expires_at < now:
+                cache.delete(cache_key)
                 return Response({"detail": "OTP expired."}, status=status.HTTP_400_BAD_REQUEST)
-            if otp_hash != verification.phone_otp_hash:
-                verification.phone_otp_attempts += 1
-                verification.save(update_fields=["phone_otp_attempts"])
+            if otp_hash != cached_value.get("otp_hash"):
                 return Response({"detail": "Invalid OTP."}, status=status.HTTP_400_BAD_REQUEST)
-            verification.phone_verified = True
-            verification.phone_verified_at = now
-            verification.save(update_fields=["phone_verified", "phone_verified_at"])
-            onboarding, _ = MentorOnboardingStatus.objects.get_or_create(mentor=mentor)
-            if onboarding.contact_status != "completed":
-                onboarding.contact_status = "completed"
-                onboarding.save(update_fields=["contact_status", "updated_at", "current_status"])
+            cache.delete(cache_key)
         return Response({"message": f"{channel.title()} verified successfully."})
 
 
@@ -818,16 +885,16 @@ class MenteeViewSet(viewsets.ModelViewSet):
         upcoming = sessions.filter(
             status__in=["requested", "approved", "scheduled"],
             scheduled_start__gte=now,
-        ).order_by("scheduled_start")[:5]
+        ).order_by("scheduled_start")[:10]
         recent = sessions.filter(
             Q(status__in=["completed", "canceled", "no_show"]) | Q(scheduled_start__lt=now)
-        ).order_by("-scheduled_start")[:5]
+        ).order_by("-scheduled_start")[:10]
         latest_request = MenteeRequest.objects.filter(mentee=mentee).order_by("-created_at").first()
         recommendations = []
         if latest_request:
             rec_qs = MatchRecommendation.objects.filter(mentee_request=latest_request).select_related(
                 "mentor"
-            ).order_by("-score")[:5]
+            ).order_by("-score")[:10]
             recommendations = MatchRecommendationSerializer(
                 rec_qs,
                 many=True,

@@ -52,6 +52,49 @@ def otp_expiry(minutes: int = 5):
     return timezone.now() + timedelta(minutes=minutes)
 
 
+def normalize_mobile(value: str) -> str:
+    return "".join(ch for ch in str(value or "") if ch.isdigit())
+
+
+def find_existing_mentor_by_mobile(mobile_value: str, *, exclude_id=None):
+    normalized = normalize_mobile(mobile_value)
+    if not normalized:
+        return None
+    for mentor in Mentor.objects.all().order_by("-id").only("id", "mobile"):
+        if exclude_id and mentor.id == exclude_id:
+            continue
+        if normalize_mobile(mentor.mobile) == normalized:
+            return mentor
+    return None
+
+
+def sync_mentor_contact_verification(mentor, *, email_verified=False, phone_verified=False):
+    verification, _ = MentorContactVerification.objects.get_or_create(mentor=mentor)
+    now = timezone.now()
+    update_fields = []
+
+    if email_verified and not verification.email_verified:
+        verification.email_verified = True
+        verification.email_verified_at = now
+        update_fields.extend(["email_verified", "email_verified_at"])
+
+    if phone_verified and not verification.phone_verified:
+        verification.phone_verified = True
+        verification.phone_verified_at = now
+        update_fields.extend(["phone_verified", "phone_verified_at"])
+
+    if update_fields:
+        verification.save(update_fields=update_fields)
+
+    if phone_verified:
+        onboarding, _ = MentorOnboardingStatus.objects.get_or_create(mentor=mentor)
+        if onboarding.contact_status != "completed":
+            onboarding.contact_status = "completed"
+            onboarding.save(update_fields=["contact_status", "updated_at", "current_status"])
+
+    return verification
+
+
 def _age_in_years(dob: date, today=None) -> int:
     reference = today or timezone.localdate()
     age = reference.year - dob.year
@@ -395,6 +438,7 @@ class MenteeRegisterSerializer(serializers.Serializer):
 
 
 class MentorRegisterSerializer(serializers.Serializer):
+    mentor_id = serializers.IntegerField(required=False)
     first_name = serializers.CharField(max_length=100)
     last_name = serializers.CharField(max_length=100)
     email = serializers.EmailField()
@@ -411,27 +455,105 @@ class MentorRegisterSerializer(serializers.Serializer):
     bio = serializers.CharField(required=False, allow_blank=True)
     avatar = serializers.URLField(required=False, allow_blank=True)
     consent = serializers.BooleanField(required=False, default=False)
+    email_verified = serializers.BooleanField(required=False, default=False)
+    phone_verified = serializers.BooleanField(required=False, default=False)
     password = serializers.CharField(required=False, allow_blank=True, write_only=True)
 
     def validate_dob(self, value):
         return _validate_age_range(value, min_age=45, max_age=60, role_label="Mentor")
 
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        mentor_id = attrs.get("mentor_id")
+        mentor = Mentor.objects.filter(id=mentor_id).first() if mentor_id else None
+
+        if mentor_id and not mentor:
+            raise serializers.ValidationError({"mentor_id": "Mentor not found."})
+
+        email = str(attrs.get("email", "")).strip().lower()
+        mobile = str(attrs.get("mobile", "")).strip()
+        attrs["email"] = email
+        attrs["mobile"] = mobile
+
+        errors = {}
+
+        email_conflict = Mentor.objects.filter(email__iexact=email)
+        if mentor:
+            email_conflict = email_conflict.exclude(id=mentor.id)
+        if email_conflict.exists():
+            errors["email"] = "This email is already registered."
+
+        mobile_conflict = find_existing_mentor_by_mobile(mobile, exclude_id=mentor.id if mentor else None)
+        if mobile_conflict:
+            errors["mobile"] = "This mobile number is already registered."
+
+        current_user = User.objects.filter(email__iexact=mentor.email).first() if mentor else None
+        existing_user = User.objects.filter(email__iexact=email).first()
+        if existing_user and (not current_user or existing_user.id != current_user.id):
+            errors["email"] = "This email is already registered."
+
+        if errors:
+            raise serializers.ValidationError(errors)
+
+        return attrs
+
     def create(self, validated_data):
+        mentor_id = validated_data.pop("mentor_id", None)
         password = validated_data.pop("password", "")
+        email_verified = validated_data.pop("email_verified", False)
+        phone_verified = validated_data.pop("phone_verified", False)
         email = validated_data["email"]
-        username = ensure_username(email.split("@")[0])
-        user, created = User.objects.get_or_create(
+        first_name = validated_data.get("first_name", "").strip()
+        last_name = validated_data.get("last_name", "").strip()
+        mentor = Mentor.objects.filter(id=mentor_id).first() if mentor_id else None
+
+        if mentor:
+            user = User.objects.filter(email__iexact=mentor.email).first()
+            if not user:
+                user = User(
+                    username=ensure_username(email.split("@")[0]),
+                    email=email,
+                )
+            user.email = email
+            user.first_name = first_name
+            user.last_name = last_name
+            user.is_active = True
+            if password:
+                user.set_password(password)
+            elif not user.pk:
+                user.set_unusable_password()
+            user.save()
+            UserProfile.objects.update_or_create(user=user, defaults={"role": "mentor"})
+
+            for field, value in validated_data.items():
+                setattr(mentor, field, value)
+            mentor.save()
+            sync_mentor_contact_verification(
+                mentor,
+                email_verified=email_verified,
+                phone_verified=phone_verified,
+            )
+            return mentor
+
+        user = User(
+            username=ensure_username(email.split("@")[0]),
             email=email,
-            defaults={"username": username},
+            first_name=first_name,
+            last_name=last_name,
+            is_active=True,
         )
         if password:
             user.set_password(password)
-            user.save(update_fields=["password"])
-        elif created and user.has_usable_password():
+        else:
             user.set_unusable_password()
-            user.save(update_fields=["password"])
-        UserProfile.objects.get_or_create(user=user, defaults={"role": "mentor"})
-        mentor, _ = Mentor.objects.update_or_create(email=email, defaults=validated_data)
+        user.save()
+        UserProfile.objects.update_or_create(user=user, defaults={"role": "mentor"})
+        mentor = Mentor.objects.create(**validated_data)
+        sync_mentor_contact_verification(
+            mentor,
+            email_verified=email_verified,
+            phone_verified=phone_verified,
+        )
         return mentor
 
     def to_representation(self, instance):
@@ -520,14 +642,56 @@ class ParentOtpVerifySerializer(serializers.Serializer):
 
 
 class MentorContactOtpSendSerializer(serializers.Serializer):
-    mentor_id = serializers.IntegerField()
+    mentor_id = serializers.IntegerField(required=False)
     channel = serializers.ChoiceField(choices=[("email", "email"), ("phone", "phone")])
+    email = serializers.EmailField(required=False, allow_blank=True)
+    mobile = serializers.CharField(max_length=20, required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        if attrs.get("mentor_id"):
+            return attrs
+
+        channel = attrs.get("channel")
+        if channel == "email":
+            email = str(attrs.get("email", "")).strip().lower()
+            if not email:
+                raise serializers.ValidationError({"email": "Email is required."})
+            attrs["email"] = email
+            return attrs
+
+        mobile = str(attrs.get("mobile", "")).strip()
+        if not mobile:
+            raise serializers.ValidationError({"mobile": "Mobile number is required."})
+        attrs["mobile"] = mobile
+        return attrs
 
 
 class MentorContactOtpVerifySerializer(serializers.Serializer):
-    mentor_id = serializers.IntegerField()
+    mentor_id = serializers.IntegerField(required=False)
     channel = serializers.ChoiceField(choices=[("email", "email"), ("phone", "phone")])
+    email = serializers.EmailField(required=False, allow_blank=True)
+    mobile = serializers.CharField(max_length=20, required=False, allow_blank=True)
     otp = serializers.CharField(max_length=6)
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        if attrs.get("mentor_id"):
+            return attrs
+
+        channel = attrs.get("channel")
+        if channel == "email":
+            email = str(attrs.get("email", "")).strip().lower()
+            if not email:
+                raise serializers.ValidationError({"email": "Email is required."})
+            attrs["email"] = email
+            return attrs
+
+        mobile = str(attrs.get("mobile", "")).strip()
+        if not mobile:
+            raise serializers.ValidationError({"mobile": "Mobile number is required."})
+        attrs["mobile"] = mobile
+        return attrs
 
 
 class MobileLoginOtpVerifySerializer(serializers.Serializer):

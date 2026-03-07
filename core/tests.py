@@ -586,6 +586,58 @@ class MentorContactVerificationStatusTests(APITestCase):
         onboarding = MentorOnboardingStatus.objects.get(mentor=self.mentor)
         self.assertEqual(onboarding.contact_status, "completed")
 
+    def test_email_otp_can_be_verified_before_mentor_registration(self):
+        send = self.client.post(
+            "/api/auth/mentor-contact/send-otp/",
+            {"channel": "email", "email": "preverify.mentor@test.com"},
+            format="json",
+        )
+        self.assertEqual(send.status_code, 200, send.data)
+        otp = send.data.get("otp")
+        self.assertTrue(otp)
+
+        verify = self.client.post(
+            "/api/auth/mentor-contact/verify-otp/",
+            {"channel": "email", "email": "preverify.mentor@test.com", "otp": otp},
+            format="json",
+        )
+        self.assertEqual(verify.status_code, 200, verify.data)
+
+    def test_phone_otp_can_be_verified_before_mentor_registration(self):
+        send = self.client.post(
+            "/api/auth/mentor-contact/send-otp/",
+            {"channel": "phone", "mobile": "+911234567000"},
+            format="json",
+        )
+        self.assertEqual(send.status_code, 200, send.data)
+        otp = send.data.get("otp")
+        self.assertTrue(otp)
+
+        verify = self.client.post(
+            "/api/auth/mentor-contact/verify-otp/",
+            {"channel": "phone", "mobile": "+911234567000", "otp": otp},
+            format="json",
+        )
+        self.assertEqual(verify.status_code, 200, verify.data)
+
+    def test_email_otp_send_rejects_existing_mentor_email(self):
+        response = self.client.post(
+            "/api/auth/mentor-contact/send-otp/",
+            {"channel": "email", "email": self.mentor.email},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("email", response.data)
+
+    def test_phone_otp_send_rejects_existing_mentor_mobile(self):
+        response = self.client.post(
+            "/api/auth/mentor-contact/send-otp/",
+            {"channel": "phone", "mobile": self.mentor.mobile},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("mobile", response.data)
+
 
 class RegistrationAgeValidationTests(APITestCase):
     @staticmethod
@@ -648,6 +700,76 @@ class RegistrationAgeValidationTests(APITestCase):
         }
         response = self.client.post("/api/auth/register/mentor/", payload, format="json")
         self.assertEqual(response.status_code, 201, response.data)
+
+    def test_mentor_registration_rejects_duplicate_email(self):
+        Mentor.objects.create(
+            first_name="Existing",
+            last_name="Mentor",
+            email="duplicate.mentor@test.com",
+            mobile="+911234501001",
+            dob=self.years_ago(45),
+            gender="Male",
+            city_state="Chennai",
+        )
+        payload = {
+            "first_name": "New",
+            "last_name": "Mentor",
+            "email": "duplicate.mentor@test.com",
+            "mobile": "+911234501002",
+            "dob": self.years_ago(46).isoformat(),
+            "gender": "Male",
+            "city_state": "Chennai",
+        }
+        response = self.client.post("/api/auth/register/mentor/", payload, format="json")
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("email", response.data)
+
+    def test_mentor_registration_rejects_duplicate_mobile(self):
+        Mentor.objects.create(
+            first_name="Existing",
+            last_name="Mentor",
+            email="existing.mobile@test.com",
+            mobile="+91 12345 01003",
+            dob=self.years_ago(45),
+            gender="Male",
+            city_state="Chennai",
+        )
+        payload = {
+            "first_name": "New",
+            "last_name": "Mentor",
+            "email": "new.mobile@test.com",
+            "mobile": "+911234501003",
+            "dob": self.years_ago(46).isoformat(),
+            "gender": "Male",
+            "city_state": "Chennai",
+        }
+        response = self.client.post("/api/auth/register/mentor/", payload, format="json")
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("mobile", response.data)
+
+    def test_mentor_registration_allows_resubmitting_same_pending_mentor(self):
+        create_payload = {
+            "first_name": "Pending",
+            "last_name": "Mentor",
+            "email": "pending.mentor@test.com",
+            "mobile": "+911234501004",
+            "dob": self.years_ago(45).isoformat(),
+            "gender": "Male",
+            "city_state": "Chennai",
+        }
+        create_response = self.client.post("/api/auth/register/mentor/", create_payload, format="json")
+        self.assertEqual(create_response.status_code, 201, create_response.data)
+
+        update_payload = {
+            **create_payload,
+            "mentor_id": create_response.data["id"],
+            "mobile": "+911234501005",
+            "qualification": "Counsellor",
+        }
+        update_response = self.client.post("/api/auth/register/mentor/", update_payload, format="json")
+        self.assertEqual(update_response.status_code, 201, update_response.data)
+        self.assertEqual(update_response.data["id"], create_response.data["id"])
+        self.assertEqual(update_response.data["mobile"], "+911234501005")
 
 
 class PayoutSettlementTests(APITestCase):
