@@ -1,6 +1,7 @@
 from datetime import date, timedelta
 from hashlib import sha256
 from random import randint
+import re
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -137,6 +138,95 @@ def build_absolute_media_url(raw_url: str, request=None) -> str:
     if public_base:
         return f"{public_base.rstrip('/')}/{value.lstrip('/')}"
     return value
+
+
+IDENTITY_PROOF_NUMBER_RULES = {
+    "ration_card": {
+        "pattern": re.compile(r"^[A-Z0-9]{6,12}$"),
+        "message": "Ration card number must be 6-12 alphanumeric characters without spaces or special characters.",
+    },
+    "aadhaar": {
+        "pattern": re.compile(r"^[0-9]{12}$"),
+        "message": "Aadhaar number must be exactly 12 digits.",
+    },
+    "passport": {
+        "pattern": re.compile(r"^[A-Z][1-9][0-9]{6}$"),
+        "message": "Passport number must follow format: 1 uppercase letter, then 7 digits.",
+    },
+    "pan_card": {
+        "pattern": re.compile(r"^[A-Z]{5}[0-9]{4}[A-Z]$"),
+        "message": "PAN number must follow format ABCDE1234F.",
+    },
+    "driving_license": {
+        "pattern": re.compile(r"^[A-Z0-9]{14,18}$"),
+        "message": "Driving license number must be 14-18 alphanumeric characters without spaces or special characters.",
+    },
+}
+IDENTITY_REVIEW_DOCUMENT_KEYS = (
+    "id_front",
+    "id_back",
+    "address_front",
+    "address_back",
+)
+IDENTITY_REVIEW_DECISIONS = {"pending", "approved", "rejected"}
+
+
+def normalize_proof_type(value: str) -> str:
+    return str(value or "").strip().lower()
+
+
+def normalize_proof_number(value: str) -> str:
+    return str(value or "").strip().upper()
+
+
+def validate_proof_number(proof_type: str, proof_number: str):
+    rule = IDENTITY_PROOF_NUMBER_RULES.get(proof_type)
+    if not rule:
+        raise serializers.ValidationError("Select a valid proof type.")
+    if not rule["pattern"].fullmatch(proof_number):
+        raise serializers.ValidationError(rule["message"])
+
+
+def normalize_document_review_status(value):
+    if value in (None, ""):
+        return {}
+    if not isinstance(value, dict):
+        raise serializers.ValidationError("document_review_status must be an object.")
+    normalized = {}
+    for raw_key, raw_value in value.items():
+        key = str(raw_key or "").strip().lower()
+        if key not in IDENTITY_REVIEW_DOCUMENT_KEYS:
+            raise serializers.ValidationError(
+                f"Unsupported document key '{raw_key}'."
+            )
+        decision = str(raw_value or "").strip().lower()
+        if decision not in IDENTITY_REVIEW_DECISIONS:
+            raise serializers.ValidationError(
+                f"Invalid decision '{raw_value}' for {key}."
+            )
+        normalized[key] = decision
+    return normalized
+
+
+def normalize_document_review_comments(value):
+    if value in (None, ""):
+        return {}
+    if not isinstance(value, dict):
+        raise serializers.ValidationError("document_review_comments must be an object.")
+    normalized = {}
+    for raw_key, raw_value in value.items():
+        key = str(raw_key or "").strip().lower()
+        if key not in IDENTITY_REVIEW_DOCUMENT_KEYS:
+            raise serializers.ValidationError(
+                f"Unsupported document key '{raw_key}'."
+            )
+        comment = str(raw_value or "").strip()
+        if len(comment) > 500:
+            raise serializers.ValidationError(
+                f"Comment for {key} must be 500 characters or fewer."
+            )
+        normalized[key] = comment
+    return normalized
 
 
 class MenteeSerializer(serializers.ModelSerializer):
@@ -281,6 +371,91 @@ class MentorIdentityVerificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = MentorIdentityVerification
         fields = "__all__"
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+
+        instance = getattr(self, "instance", None)
+
+        id_proof_type = normalize_proof_type(
+            attrs.get("id_proof_type", getattr(instance, "id_proof_type", ""))
+        )
+        id_proof_number = normalize_proof_number(
+            attrs.get("id_proof_number", getattr(instance, "id_proof_number", ""))
+        )
+        id_proof_document = attrs.get("id_proof_document", getattr(instance, "id_proof_document", None))
+
+        address_proof_type = normalize_proof_type(
+            attrs.get("address_proof_type", getattr(instance, "address_proof_type", ""))
+        )
+        address_proof_number = normalize_proof_number(
+            attrs.get("address_proof_number", getattr(instance, "address_proof_number", ""))
+        )
+        address_proof_document = attrs.get(
+            "address_proof_document",
+            getattr(instance, "address_proof_document", None),
+        )
+        review_status = normalize_document_review_status(
+            attrs.get(
+                "document_review_status",
+                getattr(instance, "document_review_status", {}),
+            )
+        )
+        review_comments = normalize_document_review_comments(
+            attrs.get(
+                "document_review_comments",
+                getattr(instance, "document_review_comments", {}),
+            )
+        )
+
+        errors = {}
+        if instance is None:
+            if not id_proof_type:
+                errors["id_proof_type"] = "ID proof type is required."
+            if not id_proof_number:
+                errors["id_proof_number"] = "ID proof number is required."
+            if not id_proof_document:
+                errors["id_proof_document"] = "ID proof document is required."
+            if not address_proof_type:
+                errors["address_proof_type"] = "Address proof type is required."
+            if not address_proof_number:
+                errors["address_proof_number"] = "Address proof number is required."
+            if not address_proof_document:
+                errors["address_proof_document"] = "Address proof document is required."
+
+        if id_proof_type and id_proof_number:
+            try:
+                validate_proof_number(id_proof_type, id_proof_number)
+            except serializers.ValidationError as exc:
+                errors["id_proof_number"] = exc.detail
+
+        if address_proof_type and address_proof_number:
+            try:
+                validate_proof_number(address_proof_type, address_proof_number)
+            except serializers.ValidationError as exc:
+                errors["address_proof_number"] = exc.detail
+
+        if address_proof_type == "pan_card":
+            errors["address_proof_type"] = "PAN Card cannot be used as Address Proof."
+
+        if id_proof_type and address_proof_type and id_proof_type == address_proof_type:
+            errors["non_field_errors"] = ["ID proof and Address proof must be different document types."]
+
+        if errors:
+            raise serializers.ValidationError(errors)
+
+        if id_proof_type:
+            attrs["id_proof_type"] = id_proof_type
+        if id_proof_number:
+            attrs["id_proof_number"] = id_proof_number
+        if address_proof_type:
+            attrs["address_proof_type"] = address_proof_type
+        if address_proof_number:
+            attrs["address_proof_number"] = address_proof_number
+        attrs["document_review_status"] = review_status
+        attrs["document_review_comments"] = review_comments
+
+        return attrs
 
 
 class MentorContactVerificationSerializer(serializers.ModelSerializer):

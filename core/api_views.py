@@ -1977,6 +1977,9 @@ class MentorIdentityVerificationViewSet(viewsets.ModelViewSet):
     queryset = MentorIdentityVerification.objects.all().order_by("-submitted_at")
     serializer_class = MentorIdentityVerificationSerializer
     permission_classes = [IsMentorOrAdminRole]
+    REVIEW_KEYS = ("id_front", "id_back", "address_front", "address_back")
+    REVIEW_DECISIONS = {"pending", "approved", "rejected"}
+    REVIEW_CONTROL_FIELDS = {"document_review_status", "document_review_comments"}
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -1993,10 +1996,194 @@ class MentorIdentityVerificationViewSet(viewsets.ModelViewSet):
         return queryset
 
     def perform_create(self, serializer):
-        if user_role(self.request.user) == ROLE_MENTOR:
+        role = user_role(self.request.user)
+        if role != ROLE_ADMIN and self._request_has_review_control_fields():
+            raise PermissionDenied("Only admins can update document review decisions.")
+        if role == ROLE_MENTOR:
             serializer.save(mentor_id=current_mentor_id(self.request))
             return
         serializer.save()
+
+    def _request_has_review_control_fields(self):
+        request_data = getattr(self.request, "data", {}) or {}
+        keys = set()
+        if hasattr(request_data, "keys"):
+            keys = {str(item).strip() for item in request_data.keys()}
+        return any(field in keys for field in self.REVIEW_CONTROL_FIELDS)
+
+    @classmethod
+    def _identity_status_from_document_review(cls, review_status):
+        status_map = review_status if isinstance(review_status, dict) else {}
+        values = [str(status_map.get(key, "pending")).strip().lower() for key in cls.REVIEW_KEYS]
+        if any(item == "rejected" for item in values):
+            return "rejected"
+        if values and all(item == "approved" for item in values):
+            return "verified"
+        if any(item == "approved" for item in values):
+            return "in_review"
+        return "pending"
+
+    @staticmethod
+    def _onboarding_identity_status(identity_status):
+        if identity_status == "verified":
+            return "completed"
+        if identity_status == "rejected":
+            return "rejected"
+        if identity_status == "in_review":
+            return "in_review"
+        return "pending"
+
+    def _sync_identity_outcome(self, verification):
+        next_identity_status = self._identity_status_from_document_review(
+            verification.document_review_status
+        )
+        update_fields = []
+        if verification.status != next_identity_status:
+            verification.status = next_identity_status
+            update_fields.append("status")
+        if next_identity_status in {"verified", "rejected", "in_review"}:
+            verification.reviewed_at = timezone.now()
+            update_fields.append("reviewed_at")
+        if update_fields:
+            verification.save(update_fields=[*set(update_fields), "updated_at"])
+
+        onboarding, _ = MentorOnboardingStatus.objects.get_or_create(mentor=verification.mentor)
+        next_onboarding_status = self._onboarding_identity_status(next_identity_status)
+        if onboarding.identity_status != next_onboarding_status:
+            onboarding.identity_status = next_onboarding_status
+            onboarding.save(update_fields=["identity_status", "updated_at", "current_status"])
+
+    def _reset_review_for_mentor_resubmission(self, verification, previous_values=None):
+        request_data = getattr(self.request, "data", {}) or {}
+        if not hasattr(request_data, "keys"):
+            return False
+
+        previous_values = previous_values or {}
+        touched_fields = {str(item).strip() for item in request_data.keys()}
+        keys_to_reset = set()
+
+        if "id_proof_document" in touched_fields:
+            keys_to_reset.add("id_front")
+        if "passport_or_license" in touched_fields:
+            keys_to_reset.add("id_back")
+        if "address_proof_document" in touched_fields or "aadhaar_front" in touched_fields:
+            keys_to_reset.add("address_front")
+        if "aadhaar_back" in touched_fields:
+            keys_to_reset.add("address_back")
+
+        previous_id_type = str(previous_values.get("id_proof_type") or "").strip()
+        current_id_type = str(verification.id_proof_type or "").strip()
+        previous_id_number = str(previous_values.get("id_proof_number") or "").strip()
+        current_id_number = str(verification.id_proof_number or "").strip()
+        previous_address_type = str(previous_values.get("address_proof_type") or "").strip()
+        current_address_type = str(verification.address_proof_type or "").strip()
+        previous_address_number = str(previous_values.get("address_proof_number") or "").strip()
+        current_address_number = str(verification.address_proof_number or "").strip()
+
+        if (
+            ("id_proof_type" in touched_fields and previous_id_type != current_id_type)
+            or ("id_proof_number" in touched_fields and previous_id_number != current_id_number)
+        ):
+            keys_to_reset.update({"id_front", "id_back"})
+        if (
+            ("address_proof_type" in touched_fields and previous_address_type != current_address_type)
+            or (
+                "address_proof_number" in touched_fields
+                and previous_address_number != current_address_number
+            )
+        ):
+            keys_to_reset.update({"address_front", "address_back"})
+
+        if not keys_to_reset:
+            return False
+
+        status_map = (
+            dict(verification.document_review_status)
+            if isinstance(verification.document_review_status, dict)
+            else {}
+        )
+        comments_map = (
+            dict(verification.document_review_comments)
+            if isinstance(verification.document_review_comments, dict)
+            else {}
+        )
+        changed = False
+        for key in keys_to_reset:
+            if status_map.get(key) != "pending":
+                status_map[key] = "pending"
+                changed = True
+            if comments_map.get(key):
+                comments_map[key] = ""
+                changed = True
+
+        if not changed:
+            return False
+
+        verification.document_review_status = status_map
+        verification.document_review_comments = comments_map
+        verification.save(update_fields=["document_review_status", "document_review_comments", "updated_at"])
+        return True
+
+    def perform_update(self, serializer):
+        role = user_role(self.request.user)
+        if role != ROLE_ADMIN and self._request_has_review_control_fields():
+            raise PermissionDenied("Only admins can update document review decisions.")
+
+        previous_values = {}
+        if role == ROLE_MENTOR and serializer.instance is not None:
+            previous_values = {
+                "id_proof_type": serializer.instance.id_proof_type,
+                "id_proof_number": serializer.instance.id_proof_number,
+                "address_proof_type": serializer.instance.address_proof_type,
+                "address_proof_number": serializer.instance.address_proof_number,
+            }
+
+        verification = serializer.save()
+        if role == ROLE_MENTOR:
+            self._reset_review_for_mentor_resubmission(
+                verification,
+                previous_values=previous_values,
+            )
+            self._sync_identity_outcome(verification)
+            return
+        if role == ROLE_ADMIN:
+            self._sync_identity_outcome(verification)
+
+    @action(detail=True, methods=["post"], url_path="document-decision", permission_classes=[IsAdminRole])
+    def document_decision(self, request, pk=None):
+        verification = self.get_object()
+        document_key = str(request.data.get("document_key", "")).strip().lower()
+        decision = str(request.data.get("decision", "")).strip().lower()
+        comment = str(request.data.get("comment", "")).strip()
+
+        if document_key not in self.REVIEW_KEYS:
+            return Response({"detail": "Invalid document key."}, status=status.HTTP_400_BAD_REQUEST)
+        if decision not in self.REVIEW_DECISIONS:
+            return Response({"detail": "Invalid decision."}, status=status.HTTP_400_BAD_REQUEST)
+        if decision == "rejected" and not comment:
+            return Response(
+                {"detail": "Comment is required when rejecting a document."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        status_map = verification.document_review_status if isinstance(verification.document_review_status, dict) else {}
+        comments_map = (
+            verification.document_review_comments
+            if isinstance(verification.document_review_comments, dict)
+            else {}
+        )
+        status_map = dict(status_map)
+        comments_map = dict(comments_map)
+        status_map[document_key] = decision
+        comments_map[document_key] = comment if decision == "rejected" else ""
+
+        verification.document_review_status = status_map
+        verification.document_review_comments = comments_map
+        verification.save(update_fields=["document_review_status", "document_review_comments", "updated_at"])
+        self._sync_identity_outcome(verification)
+        return Response(
+            self.get_serializer(verification, context={"request": request}).data
+        )
 
 
 class MentorContactVerificationViewSet(viewsets.ModelViewSet):

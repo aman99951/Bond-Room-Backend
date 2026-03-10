@@ -10,6 +10,13 @@ class MentorIdentityVerification(models.Model):
         ("verified", "Verified"),
         ("rejected", "Rejected"),
     ]
+    PROOF_TYPE_CHOICES = [
+        ("ration_card", "Ration Card"),
+        ("aadhaar", "Aadhaar"),
+        ("passport", "Passport"),
+        ("pan_card", "PAN Card"),
+        ("driving_license", "Driving License"),
+    ]
 
     mentor = models.OneToOneField(
         Mentor, on_delete=models.CASCADE, related_name="identity_verification"
@@ -29,6 +36,22 @@ class MentorIdentityVerification(models.Model):
         null=True,
         blank=True,
     )
+    id_proof_type = models.CharField(max_length=32, choices=PROOF_TYPE_CHOICES, blank=True)
+    id_proof_number = models.CharField(max_length=32, blank=True)
+    id_proof_document = models.FileField(
+        upload_to="mentor_verification/id_proof/",
+        null=True,
+        blank=True,
+    )
+    address_proof_type = models.CharField(max_length=32, choices=PROOF_TYPE_CHOICES, blank=True)
+    address_proof_number = models.CharField(max_length=32, blank=True)
+    address_proof_document = models.FileField(
+        upload_to="mentor_verification/address_proof/",
+        null=True,
+        blank=True,
+    )
+    document_review_status = models.JSONField(default=dict, blank=True)
+    document_review_comments = models.JSONField(default=dict, blank=True)
     additional_notes = models.TextField(blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
     submitted_at = models.DateTimeField(auto_now_add=True)
