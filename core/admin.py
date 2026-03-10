@@ -364,6 +364,109 @@ class MentorIdentityVerificationAdmin(admin.ModelAdmin):
     list_display = ('mentor', 'status', 'submitted_at', 'reviewed_at')
     list_filter = ('status',)
     search_fields = ('mentor__first_name', 'mentor__last_name', 'mentor__email')
+    readonly_fields = (
+        'id_proof_document_size',
+        'passport_or_license_size',
+        'address_proof_document_size',
+        'aadhaar_front_size',
+        'aadhaar_back_size',
+        'submitted_at',
+        'reviewed_at',
+        'updated_at',
+    )
+    fieldsets = (
+        (
+            'Verification Status',
+            {
+                'fields': (
+                    'mentor',
+                    'status',
+                    'submitted_at',
+                    'reviewed_at',
+                    'updated_at',
+                    'reviewer_notes',
+                    'additional_notes',
+                )
+            },
+        ),
+        (
+            'ID Proof',
+            {
+                'fields': (
+                    'id_proof_type',
+                    'id_proof_number',
+                    'id_proof_document',
+                    'id_proof_document_size',
+                    'passport_or_license',
+                    'passport_or_license_size',
+                )
+            },
+        ),
+        (
+            'Address Proof',
+            {
+                'fields': (
+                    'address_proof_type',
+                    'address_proof_number',
+                    'address_proof_document',
+                    'address_proof_document_size',
+                    'aadhaar_front',
+                    'aadhaar_front_size',
+                    'aadhaar_back',
+                    'aadhaar_back_size',
+                )
+            },
+        ),
+        (
+            'Review Metadata',
+            {
+                'fields': (
+                    'document_review_status',
+                    'document_review_comments',
+                )
+            },
+        ),
+    )
+
+    @staticmethod
+    def _human_file_size(size_bytes):
+        size = float(size_bytes or 0)
+        units = ['B', 'KB', 'MB', 'GB']
+        unit_index = 0
+        while size >= 1024 and unit_index < len(units) - 1:
+            size /= 1024
+            unit_index += 1
+        if unit_index == 0:
+            return f"{int(size)} {units[unit_index]}"
+        return f"{size:.2f} {units[unit_index]}"
+
+    def _file_size_label(self, field_file):
+        if not field_file:
+            return '-'
+        try:
+            return self._human_file_size(field_file.size)
+        except Exception:
+            return 'Unavailable'
+
+    @admin.display(description='ID Proof File Size')
+    def id_proof_document_size(self, obj):
+        return self._file_size_label(getattr(obj, 'id_proof_document', None))
+
+    @admin.display(description='Passport/License File Size')
+    def passport_or_license_size(self, obj):
+        return self._file_size_label(getattr(obj, 'passport_or_license', None))
+
+    @admin.display(description='Address Proof File Size')
+    def address_proof_document_size(self, obj):
+        return self._file_size_label(getattr(obj, 'address_proof_document', None))
+
+    @admin.display(description='Aadhaar Front File Size')
+    def aadhaar_front_size(self, obj):
+        return self._file_size_label(getattr(obj, 'aadhaar_front', None))
+
+    @admin.display(description='Aadhaar Back File Size')
+    def aadhaar_back_size(self, obj):
+        return self._file_size_label(getattr(obj, 'aadhaar_back', None))
 
 
 @admin.register(MentorContactVerification)
