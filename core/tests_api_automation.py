@@ -317,6 +317,7 @@ class ApiAutomationCoverageTests(APITestCase):
             "/api/mentor-availability-slots/{id}/": self.slot.id,
             "/api/mentor-contact-verifications/{id}/": self.contact.id,
             "/api/mentor-identity-verifications/{id}/": self.identity.id,
+            "/api/mentor-identity-verifications/{id}/document-decision/": self.identity.id,
             "/api/mentor-onboarding-statuses/{id}/": self.onboarding.id,
             "/api/mentor-profiles/{id}/": self.mentor_profile.id,
             "/api/mentor-training-progress/{id}/": self.training_progress.id,
@@ -455,6 +456,8 @@ class ApiAutomationCoverageTests(APITestCase):
             return {}
         if schema_path == "/api/mentors/{id}/admin-decision/":
             return {"training_status": "completed"}
+        if schema_path == "/api/mentor-identity-verifications/{id}/document-decision/":
+            return {"document_key": "id_front", "decision": "approved"}
         if schema_path == "/api/sessions/{id}/disposition/":
             return {"action": "claim", "amount": "120.00", "note": "Automation claim"}
         if schema_path == "/api/sessions/{id}/join-link/":
