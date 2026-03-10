@@ -1121,9 +1121,53 @@
           "additional_notes": {
             "type": "string"
           },
+          "address_proof_document": {
+            "format": "binary",
+            "nullable": true,
+            "type": "string"
+          },
+          "address_proof_number": {
+            "maxLength": 32,
+            "type": "string"
+          },
+          "address_proof_type": {
+            "enum": [
+              "ration_card",
+              "aadhaar",
+              "passport",
+              "pan_card",
+              "driving_license"
+            ],
+            "type": "string"
+          },
+          "document_review_comments": {
+            "type": "object"
+          },
+          "document_review_status": {
+            "type": "object"
+          },
           "id": {
             "readOnly": true,
             "type": "integer"
+          },
+          "id_proof_document": {
+            "format": "binary",
+            "nullable": true,
+            "type": "string"
+          },
+          "id_proof_number": {
+            "maxLength": 32,
+            "type": "string"
+          },
+          "id_proof_type": {
+            "enum": [
+              "ration_card",
+              "aadhaar",
+              "passport",
+              "pan_card",
+              "driving_license"
+            ],
+            "type": "string"
           },
           "mentor": {
             "type": "integer"
@@ -4370,6 +4414,57 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorIdentityVerification"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/mentor-identity-verifications/{id}/document-decision/": {
+      "post": {
+        "description": "",
+        "operationId": "documentDecisionMentorIdentityVerificationPost",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this mentor identity verification.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorIdentityVerification"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorIdentityVerification"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MentorIdentityVerification"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
