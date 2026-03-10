@@ -892,9 +892,14 @@ class MenteeViewSet(viewsets.ModelViewSet):
         latest_request = MenteeRequest.objects.filter(mentee=mentee).order_by("-created_at").first()
         recommendations = []
         if latest_request:
-            rec_qs = MatchRecommendation.objects.filter(mentee_request=latest_request).select_related(
-                "mentor"
-            ).order_by("-score")[:10]
+            rec_qs = (
+                MatchRecommendation.objects.filter(
+                    mentee_request=latest_request,
+                    mentor__onboarding_status__current_status="completed",
+                )
+                .select_related("mentor")
+                .order_by("-score")[:10]
+            )
             recommendations = MatchRecommendationSerializer(
                 rec_qs,
                 many=True,
@@ -990,7 +995,14 @@ class MentorViewSet(viewsets.ModelViewSet):
         if should_refresh:
             generate_recommendations_for_request(req)
 
-        recs = MatchRecommendation.objects.filter(mentee_request=req).select_related("mentor").order_by("-score")
+        recs = (
+            MatchRecommendation.objects.filter(
+                mentee_request=req,
+                mentor__onboarding_status__current_status="completed",
+            )
+            .select_related("mentor")
+            .order_by("-score")
+        )
         return Response(
             MatchRecommendationSerializer(
                 recs,
@@ -1262,7 +1274,14 @@ class MenteeRequestViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["get"], url_path="recommendations")
     def recommendations(self, request, pk=None):
         req = self.get_object()
-        recs = MatchRecommendation.objects.filter(mentee_request=req).select_related("mentor").order_by("-score")
+        recs = (
+            MatchRecommendation.objects.filter(
+                mentee_request=req,
+                mentor__onboarding_status__current_status="completed",
+            )
+            .select_related("mentor")
+            .order_by("-score")
+        )
         return Response(
             MatchRecommendationSerializer(
                 recs,

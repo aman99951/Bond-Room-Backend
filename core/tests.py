@@ -8,6 +8,8 @@ from rest_framework.test import APITestCase
 
 from core.models import (
     AdminAccount,
+    MatchRecommendation,
+    MenteeRequest,
     Mentor,
     MentorWallet,
     MentorOnboardingStatus,
@@ -19,6 +21,7 @@ from core.models import (
     UserProfile,
 )
 from core.quiz import generate_training_quiz_questions
+from core.signals import generate_recommendations_for_request
 from django.contrib.auth import get_user_model
 
 
@@ -44,6 +47,108 @@ class MentorOnboardingStatusTests(TestCase):
 
         onboarding.refresh_from_db()
         self.assertEqual(onboarding.current_status, "completed")
+
+
+class RecommendationEligibilityTests(TestCase):
+    def setUp(self):
+        self.mentee = Mentee.objects.create(
+            first_name="Reco",
+            last_name="Mentee",
+            grade="10th Grade",
+            email="reco.mentee@test.com",
+            dob=date(2008, 1, 1),
+            gender="Female",
+            city_state="Chennai",
+            timezone="Asia/Kolkata",
+        )
+        self.request = MenteeRequest.objects.create(
+            mentee=self.mentee,
+            feeling="Anxious",
+            feeling_cause="Exam Pressure",
+            support_type="Someone to Listen",
+            comfort_level="Comfortable",
+            topics=["Anxiety"],
+            preferred_times=[{"day": "Monday", "start": "10:00", "end": "12:00"}],
+            preferred_format="1:1",
+            language="English",
+            timezone="Asia/Kolkata",
+            session_mode="online",
+            allow_auto_match=True,
+        )
+
+    def _create_mentor(self, *, suffix: str, completed_onboarding: bool):
+        mentor = Mentor.objects.create(
+            first_name="Reco",
+            last_name=f"Mentor{suffix}",
+            email=f"reco.mentor.{suffix}@test.com",
+            mobile=f"+9112345678{suffix}",
+            dob=date(1980, 1, 1),
+            gender="Male",
+            city_state="Chennai",
+            languages=["English"],
+            care_areas=["Anxiety"],
+            preferred_formats=["1:1"],
+            availability=[{"day": "Monday", "start": "10:00", "end": "12:00"}],
+            timezone="Asia/Kolkata",
+            consent=True,
+        )
+        if completed_onboarding:
+            MentorOnboardingStatus.objects.create(
+                mentor=mentor,
+                application_status="completed",
+                identity_status="completed",
+                contact_status="pending",
+                training_status="pending",
+            )
+        else:
+            MentorOnboardingStatus.objects.create(
+                mentor=mentor,
+                application_status="pending",
+                identity_status="pending",
+                contact_status="pending",
+                training_status="pending",
+            )
+        return mentor
+
+    @patch("core.signals._call_openai")
+    def test_generate_recommendations_only_uses_completed_onboarding_mentors(self, mock_call_openai):
+        completed_mentor = self._create_mentor(suffix="1", completed_onboarding=True)
+        pending_mentor = self._create_mentor(suffix="2", completed_onboarding=False)
+
+        mock_call_openai.return_value = (
+            {
+                "recs": [
+                    {"mentor_id": pending_mentor.id, "score": 99, "explanation": "pending mentor"},
+                    {"mentor_id": completed_mentor.id, "score": 92, "explanation": "completed mentor"},
+                ],
+                "model": "gpt-test",
+                "response_id": "resp-test",
+                "prompt_hash": "a" * 64,
+            },
+            None,
+        )
+
+        generate_recommendations_for_request(self.request)
+
+        rec_ids = list(
+            MatchRecommendation.objects.filter(mentee_request=self.request).values_list("mentor_id", flat=True)
+        )
+        self.assertEqual(rec_ids, [completed_mentor.id])
+
+    def test_generate_recommendations_clears_existing_when_no_completed_mentors(self):
+        pending_mentor = self._create_mentor(suffix="3", completed_onboarding=False)
+        MatchRecommendation.objects.create(
+            mentee_request=self.request,
+            mentor=pending_mentor,
+            score=50,
+            explanation="old recommendation",
+            status="suggested",
+            source="rules",
+        )
+
+        generate_recommendations_for_request(self.request, replace_existing=True)
+
+        self.assertFalse(MatchRecommendation.objects.filter(mentee_request=self.request).exists())
 
 
 class OpenAIQuizGenerationTests(TestCase):

@@ -130,8 +130,13 @@ def generate_recommendations_for_request(
     if not instance.allow_auto_match or instance.safety_flag:
         return
 
+    if replace_existing:
+        MatchRecommendation.objects.filter(
+            mentee_request=instance, source__in=["openai", "rules"]
+        ).delete()
+
     max_mentors = _get_max_int("OPENAI_MAX_MENTORS", 0)
-    mentor_qs = Mentor.objects.all()
+    mentor_qs = Mentor.objects.filter(onboarding_status__current_status="completed")
     mentor_pool = list(mentor_qs[:max_mentors]) if max_mentors > 0 else list(mentor_qs[:25])
     if not mentor_pool:
         return
@@ -139,16 +144,13 @@ def generate_recommendations_for_request(
     if not mentors:
         mentors = mentor_pool
 
-    if replace_existing:
-        MatchRecommendation.objects.filter(
-            mentee_request=instance, source__in=["openai", "rules"]
-        ).delete()
+    eligible_mentors_by_id = {mentor.id: mentor for mentor in mentors}
 
     result, _error = _call_openai(instance, mentors)
     if result and result.get("recs"):
         max_recs = _get_max_int("OPENAI_MAX_RECOMMENDATIONS", 3)
         for rec in result["recs"][:max_recs]:
-            mentor = Mentor.objects.filter(id=rec.get("mentor_id")).first()
+            mentor = eligible_mentors_by_id.get(rec.get("mentor_id"))
             if not mentor:
                 continue
             MatchRecommendation.objects.create(

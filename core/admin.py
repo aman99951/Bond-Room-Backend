@@ -84,6 +84,15 @@ class AppUserAdmin(DjangoUserAdmin):
             level=messages.SUCCESS,
         )
 
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        user = form.instance
+        if user and (user.is_staff or user.is_superuser):
+            UserProfile.objects.update_or_create(
+                user=user,
+                defaults={'role': 'admin'},
+            )
+
 
 try:
     admin.site.unregister(User)
@@ -513,7 +522,7 @@ class MenteeRequestAdmin(admin.ModelAdmin):
             except ValueError:
                 max_mentors = 0
 
-            mentor_qs = Mentor.objects.all()
+            mentor_qs = Mentor.objects.filter(onboarding_status__current_status="completed")
             mentors = list(mentor_qs[:max_mentors]) if max_mentors > 0 else list(mentor_qs)
             mentors = filter_mentors(req, mentors)
             if not mentors:
@@ -632,8 +641,9 @@ class MenteeRequestAdmin(admin.ModelAdmin):
                 except ValueError:
                     max_recs = 3
 
+                eligible_mentors_by_id = {mentor.id: mentor for mentor in mentors}
                 for rec in recs[:max_recs]:
-                    mentor = Mentor.objects.filter(id=rec.get("mentor_id")).first()
+                    mentor = eligible_mentors_by_id.get(rec.get("mentor_id"))
                     if not mentor:
                         continue
                     MatchRecommendation.objects.create(
