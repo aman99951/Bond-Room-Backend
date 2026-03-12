@@ -69,6 +69,18 @@ def find_existing_mentor_by_mobile(mobile_value: str, *, exclude_id=None):
     return None
 
 
+def find_existing_mentee_by_parent_mobile(mobile_value: str, *, exclude_id=None):
+    normalized = normalize_mobile(mobile_value)
+    if not normalized:
+        return None
+    for mentee in Mentee.objects.all().order_by("-id").only("id", "parent_mobile"):
+        if exclude_id and mentee.id == exclude_id:
+            continue
+        if normalize_mobile(mentee.parent_mobile) == normalized:
+            return mentee
+    return None
+
+
 def sync_mentor_contact_verification(mentor, *, email_verified=False, phone_verified=False):
     verification, _ = MentorContactVerification.objects.get_or_create(mentor=mentor)
     now = timezone.now()
@@ -590,6 +602,35 @@ class MenteeRegisterSerializer(serializers.Serializer):
     def validate_dob(self, value):
         return _validate_age_range(value, min_age=13, max_age=18, role_label="Student")
 
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        email = str(attrs.get("email", "")).strip().lower()
+        parent_mobile = str(attrs.get("parent_mobile", "")).strip()
+        attrs["email"] = email
+        attrs["parent_mobile"] = parent_mobile
+
+        errors = {}
+        if Mentee.objects.filter(email__iexact=email).exists():
+            errors["email"] = "This email is already registered."
+        elif Mentor.objects.filter(email__iexact=email).exists():
+            errors["email"] = "This email is already registered."
+        elif User.objects.filter(email__iexact=email).exists():
+            errors["email"] = "This email is already registered."
+
+        if not parent_mobile:
+            if errors:
+                raise serializers.ValidationError(errors)
+            return attrs
+
+        mentee_conflict = find_existing_mentee_by_parent_mobile(parent_mobile)
+        if mentee_conflict or find_existing_mentor_by_mobile(parent_mobile):
+            errors["parent_mobile"] = "This mobile number is already registered."
+
+        if errors:
+            raise serializers.ValidationError(errors)
+
+        return attrs
+
     def create(self, validated_data):
         password = validated_data.pop("password", "")
         email = validated_data["email"]
@@ -809,6 +850,25 @@ class AdminOnboardingDecisionSerializer(serializers.Serializer):
 class ParentOtpSendSerializer(serializers.Serializer):
     mentee_id = serializers.IntegerField()
     parent_mobile = serializers.CharField(max_length=20, required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        parent_mobile = str(attrs.get("parent_mobile", "")).strip()
+        attrs["parent_mobile"] = parent_mobile
+        if not parent_mobile:
+            return attrs
+
+        mentee_id = attrs.get("mentee_id")
+        mentee_conflict = find_existing_mentee_by_parent_mobile(
+            parent_mobile,
+            exclude_id=mentee_id,
+        )
+        if mentee_conflict or find_existing_mentor_by_mobile(parent_mobile):
+            raise serializers.ValidationError(
+                {"parent_mobile": "This mobile number is already registered."}
+            )
+
+        return attrs
 
 
 class ParentOtpVerifySerializer(serializers.Serializer):

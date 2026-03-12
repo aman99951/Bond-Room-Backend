@@ -1593,9 +1593,14 @@ class SessionViewSet(viewsets.ModelViewSet):
             return Response(serializer.data)
 
         signal_type = str(request.data.get("signal_type", "")).strip().lower()
-        if signal_type not in {"offer", "answer", "ice", "bye", "media_state"}:
+        if signal_type not in {"offer", "answer", "ice", "bye", "media_state", "safety_alert", "transcript"}:
             return Response(
-                {"detail": "signal_type must be one of: offer, answer, ice, bye, media_state."},
+                {
+                    "detail": (
+                        "signal_type must be one of: offer, answer, ice, bye, media_state, "
+                        "safety_alert, transcript."
+                    )
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
         payload = request.data.get("payload") or {}
@@ -1766,13 +1771,20 @@ class SessionViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], url_path="analyze-transcript")
     def analyze_transcript(self, request, pk=None):
         session = self.get_object()
-        require_role(request, {ROLE_MENTOR, ROLE_ADMIN})
+        require_role(request, {ROLE_MENTEE, ROLE_MENTOR, ROLE_ADMIN})
+        role = user_role(request.user)
         participant_role = resolve_session_participant_role(request, session)
-        transcript = str(request.data.get("transcript", "")).strip()
+        transcript = str(request.data.get("transcript", "")).strip()[:5000]
         generate_summary = parse_bool(request.data.get("generate_summary"))
+        if generate_summary and role == ROLE_MENTEE:
+            raise PermissionDenied("Mentee users cannot generate meeting summaries.")
         speaker_role = str(request.data.get("speaker_role", participant_role)).strip().lower() or participant_role
         if speaker_role not in {"mentee", "mentor", "admin", "system", "unknown"}:
             speaker_role = "unknown"
+        if role == ROLE_MENTEE and speaker_role not in {"mentee", "system", "unknown"}:
+            speaker_role = "mentee"
+        if role == ROLE_MENTOR and speaker_role not in {"mentor", "mentee", "system", "unknown"}:
+            speaker_role = "mentor"
 
         analysis = classify_abuse(transcript)
         incident = None
@@ -1780,16 +1792,44 @@ class SessionViewSet(viewsets.ModelViewSet):
         if analysis["flagged"]:
             if speaker_role == "mentee":
                 snapshot = mentee_snapshot_for_incident(session)
-            incident = SessionAbuseIncident.objects.create(
-                session=session,
-                speaker_role=speaker_role,
-                transcript_snippet=transcript[:5000],
-                matched_terms=analysis["matches"],
-                severity=analysis["severity"],
-                confidence_score=analysis["confidence_score"],
-                flagged_mentee_snapshot=snapshot,
-                detection_notes=str(request.data.get("notes", "")).strip(),
+            normalized_transcript = re.sub(r"\s+", " ", transcript.strip().lower())
+            normalized_matches = sorted(
+                {str(term or "").strip().lower() for term in analysis["matches"] if str(term or "").strip()}
             )
+            duplicate_cutoff = timezone.now() - timedelta(seconds=20)
+            recent_incidents = (
+                SessionAbuseIncident.objects.filter(
+                    session=session,
+                    speaker_role=speaker_role,
+                    created_at__gte=duplicate_cutoff,
+                )
+                .order_by("-created_at", "-id")[:10]
+            )
+            for row in recent_incidents:
+                row_text = re.sub(r"\s+", " ", str(row.transcript_snippet or "").strip().lower())
+                row_matches = sorted(
+                    {
+                        str(term or "").strip().lower()
+                        for term in (row.matched_terms or [])
+                        if str(term or "").strip()
+                    }
+                )
+                if row_text == normalized_transcript and row_matches == normalized_matches:
+                    incident = row
+                    snapshot = dict(row.flagged_mentee_snapshot or snapshot)
+                    break
+
+            if incident is None:
+                incident = SessionAbuseIncident.objects.create(
+                    session=session,
+                    speaker_role=speaker_role,
+                    transcript_snippet=transcript,
+                    matched_terms=analysis["matches"],
+                    severity=analysis["severity"],
+                    confidence_score=analysis["confidence_score"],
+                    flagged_mentee_snapshot=snapshot,
+                    detection_notes=str(request.data.get("notes", "")).strip(),
+                )
 
         summary_payload = None
         summary_error = ""
@@ -1817,7 +1857,6 @@ class SessionViewSet(viewsets.ModelViewSet):
             except Exception as exc:
                 summary_error = str(exc)
 
-        role = user_role(request.user)
         return Response(
             {
                 "flagged": analysis["flagged"],

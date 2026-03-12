@@ -829,6 +829,55 @@ class RegistrationAgeValidationTests(APITestCase):
         self.assertEqual(response.status_code, 400, response.data)
         self.assertIn("email", response.data)
 
+    def test_mentee_registration_rejects_duplicate_email(self):
+        Mentee.objects.create(
+            first_name="Existing",
+            last_name="Mentee",
+            grade="10th Grade",
+            email="existing.mentee.email@test.com",
+            dob=self.years_ago(15),
+            gender="Female",
+            parent_guardian_consent=True,
+            parent_mobile="+911234501010",
+        )
+        payload = {
+            "first_name": "New",
+            "last_name": "Mentee",
+            "grade": "11th Grade",
+            "email": "existing.mentee.email@test.com",
+            "dob": self.years_ago(14).isoformat(),
+            "gender": "Female",
+            "parent_guardian_consent": True,
+            "parent_mobile": "+911234501011",
+        }
+        response = self.client.post("/api/auth/register/mentee/", payload, format="json")
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("email", response.data)
+
+    def test_mentee_registration_rejects_email_used_by_mentor(self):
+        Mentor.objects.create(
+            first_name="Existing",
+            last_name="Mentor",
+            email="shared.email.conflict@test.com",
+            mobile="+911234501012",
+            dob=self.years_ago(45),
+            gender="Male",
+            city_state="Chennai",
+        )
+        payload = {
+            "first_name": "New",
+            "last_name": "Mentee",
+            "grade": "12th Grade",
+            "email": "shared.email.conflict@test.com",
+            "dob": self.years_ago(16).isoformat(),
+            "gender": "Female",
+            "parent_guardian_consent": True,
+            "parent_mobile": "+911234501013",
+        }
+        response = self.client.post("/api/auth/register/mentee/", payload, format="json")
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("email", response.data)
+
     def test_mentor_registration_rejects_duplicate_mobile(self):
         Mentor.objects.create(
             first_name="Existing",
@@ -851,6 +900,55 @@ class RegistrationAgeValidationTests(APITestCase):
         response = self.client.post("/api/auth/register/mentor/", payload, format="json")
         self.assertEqual(response.status_code, 400, response.data)
         self.assertIn("mobile", response.data)
+
+    def test_mentee_registration_rejects_duplicate_parent_mobile(self):
+        Mentee.objects.create(
+            first_name="Existing",
+            last_name="Mentee",
+            grade="10th Grade",
+            email="existing.parent.mobile@test.com",
+            dob=self.years_ago(15),
+            gender="Female",
+            parent_mobile="+91 12345 01006",
+            parent_guardian_consent=True,
+        )
+        payload = {
+            "first_name": "New",
+            "last_name": "Mentee",
+            "grade": "11th Grade",
+            "email": "new.parent.mobile@test.com",
+            "dob": self.years_ago(14).isoformat(),
+            "gender": "Female",
+            "parent_guardian_consent": True,
+            "parent_mobile": "+911234501006",
+        }
+        response = self.client.post("/api/auth/register/mentee/", payload, format="json")
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("parent_mobile", response.data)
+
+    def test_mentee_registration_rejects_parent_mobile_used_by_mentor(self):
+        Mentor.objects.create(
+            first_name="Existing",
+            last_name="Mentor",
+            email="mentor.mobile.conflict@test.com",
+            mobile="+91 12345 01007",
+            dob=self.years_ago(45),
+            gender="Male",
+            city_state="Chennai",
+        )
+        payload = {
+            "first_name": "New",
+            "last_name": "Mentee",
+            "grade": "12th Grade",
+            "email": "new.mentee.mobile.conflict@test.com",
+            "dob": self.years_ago(16).isoformat(),
+            "gender": "Female",
+            "parent_guardian_consent": True,
+            "parent_mobile": "+911234501007",
+        }
+        response = self.client.post("/api/auth/register/mentee/", payload, format="json")
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("parent_mobile", response.data)
 
     def test_mentor_registration_allows_resubmitting_same_pending_mentor(self):
         create_payload = {
