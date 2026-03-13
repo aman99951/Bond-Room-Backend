@@ -937,6 +937,8 @@ class MentorViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticatedWithAppRole]
 
     def get_permissions(self):
+        if self.action in {"list", "retrieve"}:
+            return [AllowAny()]
         if self.action in {"create", "destroy"}:
             return [IsAdminRole()]
         return super().get_permissions()
@@ -949,6 +951,10 @@ class MentorViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
+        if not getattr(self.request.user, "is_authenticated", False):
+            if self.action in {"list", "retrieve"}:
+                return queryset
+            return queryset.none()
         role = user_role(self.request.user)
         if role == ROLE_ADMIN:
             email = self.request.query_params.get("email")
