@@ -1,0 +1,8 @@
+Welcome to Bond Room, {{ mentee_name }}!
+
+Your account is now ready.
+You can explore mentors and request your first session.
+
+{% if dashboard_url %}Open your dashboard: {{ dashboard_url }}
+
+{% endif %}Need help? Reply to this email{% if support_email %} or contact {{ support_email }}{% endif %}.

@@ -41,6 +41,17 @@ def _load_env_file(path: Path, *, override_previous_files: bool = False) -> None
         key, value = line.split("=", 1)
         key = key.strip()
         value = value.strip()
+        if not key:
+            continue
+
+        # Accept quoted values and optional inline comments in .env files.
+        if value and value[0] in {"'", '"'}:
+            quote_char = value[0]
+            if len(value) >= 2 and value[-1] == quote_char:
+                value = value[1:-1]
+        elif " #" in value:
+            value = value.split(" #", 1)[0].rstrip()
+
         if key in existing_env_keys:
             continue
         if not override_previous_files and key in os.environ:
@@ -315,6 +326,15 @@ SIMPLE_JWT = {
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
 MENTOR_TEST_OTP = os.environ.get("MENTOR_TEST_OTP", "").strip()
 MOCK_LOGIN_OTP = os.environ.get("MOCK_LOGIN_OTP", "123456").strip()
+
+# Email (SMTP)
+EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend").strip()
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.gmail.com").strip()
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "true").strip().lower() in {"1", "true", "yes"}
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "").strip()
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "").strip()
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER).strip()
 
 required_cors_origins = [
     "http://localhost:5173",

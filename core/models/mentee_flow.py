@@ -189,10 +189,31 @@ class SessionMeetingSignal(models.Model):
 
 
 class SessionAbuseIncident(models.Model):
+    INCIDENT_TYPE_CHOICES = [
+        ("verbal_abuse", "Verbal Abuse"),
+        ("inappropriate_gesture", "Inappropriate Gesture"),
+        ("inappropriate_attire", "Inappropriate Attire"),
+        ("sexual_content", "Sexual Content"),
+        ("harassment", "Harassment"),
+        ("unsafe_environment", "Unsafe Environment"),
+        ("unknown", "Unknown"),
+    ]
+    DETECTION_SOURCE_CHOICES = [
+        ("transcript", "Transcript"),
+        ("manual_report", "Manual Report"),
+        ("client_signal", "Client Signal"),
+        ("ai_vision", "AI Vision"),
+    ]
     SEVERITY_CHOICES = [
         ("low", "Low"),
         ("medium", "Medium"),
         ("high", "High"),
+    ]
+    RECOMMENDED_ACTION_CHOICES = [
+        ("none", "None"),
+        ("warn", "Warn"),
+        ("escalate_review", "Escalate Review"),
+        ("terminate_session", "Terminate Session"),
     ]
     SPEAKER_ROLE_CHOICES = [
         ("mentee", "Mentee"),
@@ -205,6 +226,8 @@ class SessionAbuseIncident(models.Model):
     session = models.ForeignKey(
         Session, on_delete=models.CASCADE, related_name="abuse_incidents"
     )
+    incident_type = models.CharField(max_length=40, choices=INCIDENT_TYPE_CHOICES, default="unknown")
+    detection_source = models.CharField(max_length=20, choices=DETECTION_SOURCE_CHOICES, default="manual_report")
     speaker_role = models.CharField(max_length=20, choices=SPEAKER_ROLE_CHOICES, default="unknown")
     transcript_snippet = models.TextField(blank=True)
     matched_terms = models.JSONField(default=list, blank=True)
@@ -212,6 +235,12 @@ class SessionAbuseIncident(models.Model):
     confidence_score = models.DecimalField(
         max_digits=4, decimal_places=2, null=True, blank=True
     )
+    recommended_action = models.CharField(
+        max_length=20, choices=RECOMMENDED_ACTION_CHOICES, default="none"
+    )
+    event_timestamp = models.DateTimeField(null=True, blank=True)
+    evidence_url = models.URLField(blank=True)
+    detection_payload = models.JSONField(default=dict, blank=True)
     flagged_mentee_snapshot = models.JSONField(default=dict, blank=True)
     detection_notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

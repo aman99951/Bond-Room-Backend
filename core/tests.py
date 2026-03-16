@@ -2,10 +2,12 @@ from datetime import date, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
-from django.test import TestCase
+from django.core import mail
+from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
+from core.abuse_monitoring import classify_behavior_signal, detect_abusive_terms
 from core.models import (
     AdminAccount,
     MatchRecommendation,
@@ -15,8 +17,10 @@ from core.models import (
     MentorOnboardingStatus,
     Mentee,
     PayoutTransaction,
+    SessionAbuseIncident,
     Session,
     SessionFeedback,
+    SessionIssueReport,
     TrainingModule,
     UserProfile,
 )
@@ -781,6 +785,29 @@ class RegistrationAgeValidationTests(APITestCase):
         self.assertEqual(response.status_code, 400, response.data)
         self.assertIn("dob", response.data)
 
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        DEFAULT_FROM_EMAIL="Bond Room <noreply@bondroom.test>",
+        PUBLIC_BASE_URL="https://bond-room.vercel.app",
+    )
+    def test_mentee_registration_sends_welcome_email(self):
+        payload = {
+            "first_name": "Student",
+            "last_name": "Welcome",
+            "grade": "10th Grade",
+            "email": "mentee.welcome@test.com",
+            "dob": self.years_ago(14).isoformat(),
+            "gender": "Female",
+            "parent_guardian_consent": True,
+            "parent_mobile": "+911234501130",
+        }
+        response = self.client.post("/api/auth/register/mentee/", payload, format="json")
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["mentee.welcome@test.com"])
+        self.assertIn("Welcome to Bond Room", mail.outbox[0].subject)
+        self.assertIn("Open Dashboard", mail.outbox[0].alternatives[0][0])
+
     def test_mentee_registration_accepts_boundary_age_13(self):
         payload = {
             "first_name": "Boundary",
@@ -974,6 +1001,53 @@ class RegistrationAgeValidationTests(APITestCase):
         self.assertEqual(update_response.data["id"], create_response.data["id"])
         self.assertEqual(update_response.data["mobile"], "+911234501005")
 
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        DEFAULT_FROM_EMAIL="Bond Room <noreply@bondroom.test>",
+        PUBLIC_BASE_URL="https://bond-room.vercel.app",
+    )
+    def test_mentor_registration_sends_welcome_email(self):
+        payload = {
+            "first_name": "Email",
+            "last_name": "Mentor",
+            "email": "mentor.welcome@test.com",
+            "mobile": "+911234501111",
+            "dob": self.years_ago(45).isoformat(),
+            "gender": "Male",
+            "city_state": "Chennai",
+        }
+        response = self.client.post("/api/auth/register/mentor/", payload, format="json")
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["mentor.welcome@test.com"])
+        self.assertIn("Welcome to Bond Room", mail.outbox[0].subject)
+        self.assertIn("Open Mentor Dashboard", mail.outbox[0].alternatives[0][0])
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_mentor_registration_update_does_not_send_welcome_email(self):
+        create_payload = {
+            "first_name": "NoSpam",
+            "last_name": "Mentor",
+            "email": "mentor.nospam@test.com",
+            "mobile": "+911234501121",
+            "dob": self.years_ago(45).isoformat(),
+            "gender": "Male",
+            "city_state": "Chennai",
+        }
+        create_response = self.client.post("/api/auth/register/mentor/", create_payload, format="json")
+        self.assertEqual(create_response.status_code, 201, create_response.data)
+        self.assertEqual(len(mail.outbox), 1)
+
+        update_payload = {
+            **create_payload,
+            "mentor_id": create_response.data["id"],
+            "qualification": "Counsellor",
+            "mobile": "+911234501122",
+        }
+        update_response = self.client.post("/api/auth/register/mentor/", update_payload, format="json")
+        self.assertEqual(update_response.status_code, 201, update_response.data)
+        self.assertEqual(len(mail.outbox), 1)
+
 
 class PayoutSettlementTests(APITestCase):
     @classmethod
@@ -1094,3 +1168,191 @@ class PayoutSettlementTests(APITestCase):
         self.payout_tx.refresh_from_db()
         self.assertEqual(self.wallet.pending_payout, Decimal("0.00"))
         self.assertEqual(self.payout_tx.status, "paid")
+
+
+class SessionBehaviorMonitoringTests(APITestCase):
+    @classmethod
+    def setUpTestData(cls):
+        User = get_user_model()
+        cls.mentor_user = User.objects.create_user(
+            username="behavior_mentor_user",
+            email="behavior.mentor@test.com",
+            password="MentorPass123!",
+        )
+        cls.mentee_user = User.objects.create_user(
+            username="behavior_mentee_user",
+            email="behavior.mentee@test.com",
+            password="MenteePass123!",
+        )
+        UserProfile.objects.create(user=cls.mentor_user, role="mentor")
+        UserProfile.objects.create(user=cls.mentee_user, role="mentee")
+
+        cls.mentor = Mentor.objects.create(
+            first_name="Behavior",
+            last_name="Mentor",
+            email=cls.mentor_user.email,
+            mobile="+911111110101",
+            dob=date(1975, 3, 1),
+            gender="Male",
+            city_state="Chennai",
+        )
+        cls.mentee = Mentee.objects.create(
+            first_name="Behavior",
+            last_name="Mentee",
+            grade="10th Grade",
+            email=cls.mentee_user.email,
+            dob=date(2010, 3, 1),
+            gender="Female",
+            city_state="Chennai",
+            parent_guardian_consent=True,
+        )
+        now = timezone.now()
+        cls.session = Session.objects.create(
+            mentee=cls.mentee,
+            mentor=cls.mentor,
+            scheduled_start=now - timedelta(minutes=30),
+            scheduled_end=now + timedelta(minutes=30),
+            duration_minutes=60,
+            timezone="Asia/Kolkata",
+            mode="online",
+            status="scheduled",
+        )
+
+    def test_mentor_can_report_high_risk_video_behavior(self):
+        self.client.force_authenticate(user=self.mentor_user)
+        response = self.client.post(
+            f"/api/sessions/{self.session.id}/report-behavior/",
+            {
+                "speaker_role": "mentee",
+                "labels": ["inappropriate dress", "partial nudity"],
+                "confidence_score": 0.93,
+                "notes": "Detected at minute 12.",
+                "evidence_url": "https://example.com/snapshots/frame-12.jpg",
+                "payload": {"frame_timestamp_ms": 720000},
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(response.data["incident_type"], "inappropriate_attire")
+        self.assertEqual(response.data["severity"], "high")
+        self.assertEqual(response.data["recommended_action"], "terminate_session")
+        self.assertTrue(response.data["escalated_to_issue_report"])
+
+        incident = SessionAbuseIncident.objects.get(id=response.data["incident_id"])
+        self.assertEqual(incident.detection_source, "client_signal")
+        self.assertEqual(incident.incident_type, "inappropriate_attire")
+        self.assertEqual(incident.speaker_role, "mentee")
+        self.assertEqual(incident.recommended_action, "terminate_session")
+        self.assertEqual(incident.detection_payload.get("frame_timestamp_ms"), 720000)
+        self.assertEqual(incident.detection_payload.get("reported_by_role"), "mentor")
+
+        issue = SessionIssueReport.objects.get(session=self.session)
+        self.assertEqual(issue.category, "safety_concern")
+        self.assertEqual(issue.status, "open")
+
+    def test_invalid_evidence_url_is_rejected(self):
+        self.client.force_authenticate(user=self.mentee_user)
+        response = self.client.post(
+            f"/api/sessions/{self.session.id}/report-behavior/",
+            {
+                "labels": ["inappropriate hand signal"],
+                "evidence_url": "frame://bad-link",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("evidence_url", str(response.data))
+
+    @patch("core.api_views.classify_video_behavior_frame")
+    @patch.dict("os.environ", {"VISION_CONSECUTIVE_REQUIRED": "1"})
+    def test_analyze_video_frame_creates_incident(self, mock_classify):
+        mock_classify.return_value = {
+            "flagged": True,
+            "incident_type": "inappropriate_gesture",
+            "severity": "high",
+            "recommended_action": "terminate_session",
+            "confidence_score": 0.94,
+            "matched_terms": ["middle finger"],
+            "notes": "Detected obscene hand signal.",
+        }
+        self.client.force_authenticate(user=self.mentor_user)
+        response = self.client.post(
+            f"/api/sessions/{self.session.id}/analyze-video-frame/",
+            {
+                "speaker_role": "mentee",
+                "frame_data_url": "data:image/jpeg;base64,ZmFrZTI=",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertTrue(response.data["flagged"])
+        self.assertEqual(response.data["incident_type"], "inappropriate_gesture")
+        self.assertEqual(response.data["recommended_action"], "terminate_session")
+
+        incident = SessionAbuseIncident.objects.get(id=response.data["incident_id"])
+        self.assertEqual(incident.detection_source, "ai_vision")
+        self.assertEqual(incident.incident_type, "inappropriate_gesture")
+        self.assertEqual(incident.speaker_role, "mentee")
+        self.assertEqual(incident.severity, "high")
+
+    def test_analyze_video_frame_rejects_invalid_payload(self):
+        self.client.force_authenticate(user=self.mentor_user)
+        response = self.client.post(
+            f"/api/sessions/{self.session.id}/analyze-video-frame/",
+            {
+                "speaker_role": "mentee",
+                "frame_data_url": "not-a-data-url",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("frame_data_url", str(response.data))
+
+    @patch("core.api_views.classify_video_behavior_frame")
+    def test_analyze_video_frame_suppresses_low_confidence_unsafe_environment(self, mock_classify):
+        mock_classify.return_value = {
+            "flagged": True,
+            "incident_type": "unsafe_environment",
+            "severity": "high",
+            "recommended_action": "escalate_review",
+            "confidence_score": 0.41,
+            "matched_terms": ["unsafe environment"],
+            "notes": "Possible unsafe background.",
+        }
+        self.client.force_authenticate(user=self.mentor_user)
+        response = self.client.post(
+            f"/api/sessions/{self.session.id}/analyze-video-frame/",
+            {
+                "speaker_role": "mentee",
+                "frame_data_url": "data:image/jpeg;base64,ZmFrZQ==",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertFalse(response.data["flagged"])
+        self.assertTrue(response.data["suppressed"])
+        self.assertEqual(response.data["reason"], "low_confidence")
+
+
+class AbuseMonitoringClassificationTests(TestCase):
+    def test_detect_abusive_terms_matches_obfuscated_wording(self):
+        matches = detect_abusive_terms("You are f u c k i n g rude.")
+        self.assertIn("fuck", matches)
+
+    def test_classify_behavior_signal_ignores_negated_safety_phrase(self):
+        result = classify_behavior_signal(
+            labels=[],
+            note="No unsafe environment detected in this frame.",
+            confidence_score=0.12,
+        )
+        self.assertFalse(result["flagged"])
+        self.assertEqual(result["incident_type"], "unknown")
+
+    def test_classify_behavior_signal_flags_explicit_gesture_phrase(self):
+        result = classify_behavior_signal(
+            labels=["middle finger"],
+            note="",
+            confidence_score=0.9,
+        )
+        self.assertTrue(result["flagged"])
+        self.assertEqual(result["incident_type"], "inappropriate_gesture")

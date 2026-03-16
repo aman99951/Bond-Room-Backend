@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Welcome to Bond Room</title>
+  </head>
+  <body style="margin:0;padding:0;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f4f7fb;padding:24px 0;">
+      <tr>
+        <td align="center">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="640" style="max-width:640px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e5e7eb;">
+            <tr>
+              <td style="padding:28px 32px;background:linear-gradient(135deg,#0b5fff,#0a8f60);color:#ffffff;">
+                <div style="font-size:13px;letter-spacing:0.8px;font-weight:700;text-transform:uppercase;opacity:0.9;">Bond Room</div>
+                <h1 style="margin:10px 0 0;font-size:28px;line-height:1.2;">Welcome, {{ mentor_name }}!</h1>
+                <p style="margin:10px 0 0;font-size:15px;line-height:1.6;opacity:0.95;">
+                  Your mentor registration is received. Thank you for joining our mission to support students.
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px 32px;">
+                <p style="margin:0 0 14px;font-size:15px;line-height:1.7;">
+                  You are now part of the Bond Room mentor community. You can continue onboarding, complete your profile, and start helping mentees.
+                </p>
+                {% if dashboard_url %}
+                <p style="margin:20px 0 0;">
+                  <a href="{{ dashboard_url }}" style="display:inline-block;background:#0b5fff;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:10px;font-size:14px;font-weight:600;">Open Mentor Dashboard</a>
+                </p>
+                {% endif %}
+                <div style="margin-top:26px;padding-top:18px;border-top:1px solid #e5e7eb;font-size:13px;line-height:1.6;color:#4b5563;">
+                  Need help? Reply to this email{% if support_email %} or contact {{ support_email }}{% endif %}.
+                </div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

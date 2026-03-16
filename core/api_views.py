@@ -1,6 +1,7 @@
 import json
 import os
 import time
+import hashlib
 from datetime import timedelta
 from decimal import Decimal
 import re
@@ -13,6 +14,7 @@ from django.db import transaction
 from django.db.models import Avg, Count, Q, Sum
 from django.contrib.auth.models import update_last_login
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -113,8 +115,9 @@ from .quiz import (
     evaluate_quiz_attempt,
     generate_training_quiz_questions,
 )
-from .abuse_monitoring import classify_abuse
+from .abuse_monitoring import classify_abuse, classify_behavior_signal, classify_video_behavior_frame
 from .signals import generate_recommendations_for_request
+from .emails import send_mentee_welcome_email, send_mentor_welcome_email
 
 try:
     from cloudinary.utils import api_sign_request
@@ -512,6 +515,7 @@ class MenteeRegisterView(GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         mentee = serializer.save()
+        send_mentee_welcome_email(mentee)
         return Response(serializer.to_representation(mentee), status=status.HTTP_201_CREATED)
 
 
@@ -522,7 +526,10 @@ class MentorRegisterView(GenericAPIView):
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        is_new_registration = not serializer.validated_data.get("mentor_id")
         mentor = serializer.save()
+        if is_new_registration:
+            send_mentor_welcome_email(mentor)
         return Response(serializer.to_representation(mentor), status=status.HTTP_201_CREATED)
 
 
@@ -1828,11 +1835,18 @@ class SessionViewSet(viewsets.ModelViewSet):
             if incident is None:
                 incident = SessionAbuseIncident.objects.create(
                     session=session,
+                    incident_type="verbal_abuse",
+                    detection_source="transcript",
                     speaker_role=speaker_role,
                     transcript_snippet=transcript,
                     matched_terms=analysis["matches"],
                     severity=analysis["severity"],
                     confidence_score=analysis["confidence_score"],
+                    recommended_action=(
+                        "terminate_session"
+                        if analysis["severity"] == "high"
+                        else ("escalate_review" if analysis["severity"] == "medium" else "warn")
+                    ),
                     flagged_mentee_snapshot=snapshot,
                     detection_notes=str(request.data.get("notes", "")).strip(),
                 )
@@ -1866,9 +1880,12 @@ class SessionViewSet(viewsets.ModelViewSet):
         return Response(
             {
                 "flagged": analysis["flagged"],
+                "speaker_role": speaker_role,
                 "severity": analysis["severity"],
                 "confidence_score": analysis["confidence_score"],
                 "matched_terms": analysis["matches"],
+                "incident_type": incident.incident_type if incident else "unknown",
+                "recommended_action": incident.recommended_action if incident else "none",
                 "incident_id": incident.id if incident else None,
                 "flagged_mentee_info": snapshot if role in {ROLE_ADMIN, ROLE_MENTOR} else {},
                 "summary_generated": bool(summary_payload),
@@ -1878,6 +1895,349 @@ class SessionViewSet(viewsets.ModelViewSet):
                 "summary_model": summary_payload.get("model", "") if summary_payload else "",
                 "summary_error": summary_error,
             }
+        )
+
+    @action(detail=True, methods=["post"], url_path="report-behavior")
+    def report_behavior(self, request, pk=None):
+        session = self.get_object()
+        role = user_role(request.user)
+        participant_role = resolve_session_participant_role(request, session)
+
+        speaker_role = str(request.data.get("speaker_role", "unknown")).strip().lower() or "unknown"
+        if speaker_role not in {"mentee", "mentor", "admin", "system", "unknown"}:
+            speaker_role = "unknown"
+        if role in {ROLE_MENTEE, ROLE_MENTOR} and speaker_role not in {
+            "mentee",
+            "mentor",
+            "system",
+            "unknown",
+        }:
+            speaker_role = participant_role
+
+        labels = request.data.get("labels") or []
+        if isinstance(labels, str):
+            labels = [labels]
+        if not isinstance(labels, list):
+            return Response({"detail": "labels must be a list of strings."}, status=status.HTTP_400_BAD_REQUEST)
+        labels = [str(label).strip() for label in labels if str(label).strip()][:20]
+
+        notes = str(request.data.get("notes", "")).strip()
+        confidence_score = request.data.get("confidence_score", 0.0)
+        classification = classify_behavior_signal(
+            labels=labels,
+            note=notes,
+            confidence_score=confidence_score,
+        )
+
+        payload = request.data.get("payload") or {}
+        if not isinstance(payload, dict):
+            return Response({"detail": "payload must be an object."}, status=status.HTTP_400_BAD_REQUEST)
+
+        event_timestamp = None
+        raw_event_time = str(request.data.get("event_timestamp", "")).strip()
+        if raw_event_time:
+            event_timestamp = parse_datetime(raw_event_time)
+            if event_timestamp is None:
+                return Response(
+                    {"detail": "event_timestamp must be a valid ISO datetime string."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        evidence_url = str(request.data.get("evidence_url", "")).strip()
+        if evidence_url and not evidence_url.startswith(("http://", "https://")):
+            return Response(
+                {"detail": "evidence_url must start with http:// or https://"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        incident_type = str(request.data.get("incident_type", classification["incident_type"])).strip().lower() or "unknown"
+        valid_incident_types = {choice[0] for choice in SessionAbuseIncident.INCIDENT_TYPE_CHOICES}
+        if incident_type not in valid_incident_types:
+            incident_type = classification["incident_type"] if classification["incident_type"] in valid_incident_types else "unknown"
+
+        severity = str(request.data.get("severity", classification["severity"])).strip().lower() or classification["severity"]
+        if severity not in {"low", "medium", "high"}:
+            severity = classification["severity"]
+        recommended_action = str(
+            request.data.get("recommended_action", classification["recommended_action"])
+        ).strip().lower() or classification["recommended_action"]
+        if recommended_action not in {"none", "warn", "escalate_review", "terminate_session"}:
+            recommended_action = classification["recommended_action"]
+
+        if not classification["flagged"] and severity == "low" and not labels and not notes:
+            return Response(
+                {"detail": "Provide at least one behavior signal in labels or notes."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if speaker_role == "mentee":
+            snapshot = mentee_snapshot_for_incident(session)
+        else:
+            snapshot = {}
+
+        incident = SessionAbuseIncident.objects.create(
+            session=session,
+            incident_type=incident_type,
+            detection_source="client_signal",
+            speaker_role=speaker_role,
+            transcript_snippet=notes,
+            matched_terms=classification["matched_terms"] or labels,
+            severity=severity,
+            confidence_score=classification["confidence_score"],
+            recommended_action=recommended_action,
+            event_timestamp=event_timestamp,
+            evidence_url=evidence_url,
+            detection_payload={
+                **payload,
+                "labels": labels,
+                "reported_by_role": participant_role,
+            },
+            flagged_mentee_snapshot=snapshot,
+            detection_notes=notes,
+        )
+
+        if severity in {"medium", "high"}:
+            SessionIssueReport.objects.update_or_create(
+                session=session,
+                defaults={
+                    "mentor": session.mentor,
+                    "category": "safety_concern",
+                    "status": "open",
+                    "description": (
+                        f"Behavior alert ({incident_type}) detected. "
+                        f"severity={severity}, action={recommended_action}, "
+                        f"speaker_role={speaker_role}, labels={', '.join(labels) or 'n/a'}."
+                    ),
+                },
+            )
+
+        return Response(
+            {
+                "incident_id": incident.id,
+                "flagged": classification["flagged"] or severity in {"medium", "high"},
+                "incident_type": incident.incident_type,
+                "severity": incident.severity,
+                "recommended_action": incident.recommended_action,
+                "confidence_score": incident.confidence_score,
+                "escalated_to_issue_report": severity in {"medium", "high"},
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=["post"], url_path="analyze-video-frame")
+    def analyze_video_frame(self, request, pk=None):
+        session = self.get_object()
+        role = user_role(request.user)
+        participant_role = resolve_session_participant_role(request, session)
+        frame_data_url = str(request.data.get("frame_data_url", "")).strip()
+        if not frame_data_url.startswith("data:image/"):
+            return Response(
+                {"detail": "frame_data_url must be a valid data:image/... URL."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        speaker_role = str(request.data.get("speaker_role", "unknown")).strip().lower() or "unknown"
+        if speaker_role not in {"mentee", "mentor", "admin", "system", "unknown"}:
+            speaker_role = "unknown"
+        if role in {ROLE_MENTEE, ROLE_MENTOR} and speaker_role not in {
+            "mentee",
+            "mentor",
+            "system",
+            "unknown",
+        }:
+            speaker_role = participant_role
+
+        # Frame hash for short-term duplicate suppression after incident creation.
+        frame_hash = hashlib.sha1(frame_data_url[:4000].encode("utf-8")).hexdigest()
+        dedupe_key = f"session:{session.id}:vision:{speaker_role}:{frame_hash}"
+
+        analysis = classify_video_behavior_frame(
+            frame_data_url=frame_data_url,
+            note=str(request.data.get("notes", "")).strip(),
+        )
+        if not analysis.get("flagged"):
+            return Response(
+                {
+                    "flagged": False,
+                    "incident_type": analysis.get("incident_type", "unknown"),
+                    "severity": analysis.get("severity", "low"),
+                    "recommended_action": analysis.get("recommended_action", "none"),
+                    "confidence_score": analysis.get("confidence_score", 0.0),
+                    "matched_terms": analysis.get("matched_terms", []),
+                }
+            )
+
+        incident_type = str(analysis.get("incident_type", "unknown")).strip().lower() or "unknown"
+        confidence_score = float(analysis.get("confidence_score") or 0.0)
+        if incident_type == "unknown":
+            return Response(
+                {
+                    "flagged": False,
+                    "suppressed": True,
+                    "reason": "unknown_incident_type",
+                    "incident_type": incident_type,
+                    "severity": analysis.get("severity", "low"),
+                    "recommended_action": analysis.get("recommended_action", "none"),
+                    "confidence_score": confidence_score,
+                }
+            )
+
+        min_confidence_map = {
+            "inappropriate_gesture": float(
+                os.environ.get("VISION_GESTURE_MIN_CONFIDENCE", "0.55")
+            ),
+            "inappropriate_attire": float(
+                os.environ.get("VISION_ATTIRE_MIN_CONFIDENCE", "0.65")
+            ),
+            "sexual_content": float(
+                os.environ.get("VISION_SEXUAL_MIN_CONFIDENCE", "0.7")
+            ),
+            "harassment": float(
+                os.environ.get("VISION_HARASSMENT_MIN_CONFIDENCE", "0.72")
+            ),
+            "unsafe_environment": float(
+                os.environ.get("VISION_UNSAFE_ENV_MIN_CONFIDENCE", "0.78")
+            ),
+        }
+        min_confidence = min_confidence_map.get(incident_type, 0.9)
+        if confidence_score < min_confidence:
+            return Response(
+                {
+                    "flagged": False,
+                    "suppressed": True,
+                    "reason": "low_confidence",
+                    "incident_type": incident_type,
+                    "severity": analysis.get("severity", "low"),
+                    "recommended_action": analysis.get("recommended_action", "none"),
+                    "confidence_score": confidence_score,
+                    "required_confidence": min_confidence,
+                }
+            )
+
+        consecutive_required_map = {
+            "inappropriate_gesture": int(
+                os.environ.get("VISION_GESTURE_CONSECUTIVE_REQUIRED", "1")
+            ),
+            "inappropriate_attire": int(
+                os.environ.get("VISION_ATTIRE_CONSECUTIVE_REQUIRED", "1")
+            ),
+            "sexual_content": int(
+                os.environ.get("VISION_SEXUAL_CONSECUTIVE_REQUIRED", "1")
+            ),
+            "harassment": int(
+                os.environ.get("VISION_HARASSMENT_CONSECUTIVE_REQUIRED", "2")
+            ),
+            "unsafe_environment": int(
+                os.environ.get("VISION_UNSAFE_ENV_CONSECUTIVE_REQUIRED", "3")
+            ),
+        }
+        global_consecutive_required = int(os.environ.get("VISION_CONSECUTIVE_REQUIRED", "1"))
+        consecutive_required = max(
+            1, consecutive_required_map.get(incident_type, global_consecutive_required)
+        )
+        streak_key = f"session:{session.id}:vision-streak:{speaker_role}:{incident_type}"
+        streak_count = int(cache.get(streak_key, 0) or 0) + 1
+        cache.set(streak_key, streak_count, timeout=40)
+        if streak_count < consecutive_required:
+            return Response(
+                {
+                    "flagged": False,
+                    "suppressed": True,
+                    "reason": "requires_consecutive_detection",
+                    "incident_type": incident_type,
+                    "severity": analysis.get("severity", "low"),
+                    "recommended_action": analysis.get("recommended_action", "none"),
+                    "confidence_score": confidence_score,
+                    "required_consecutive": consecutive_required,
+                    "observed_consecutive": streak_count,
+                }
+            )
+        cache.delete(streak_key)
+
+        cooldown_seconds = max(15, int(os.environ.get("VISION_ALERT_COOLDOWN_SECONDS", "60")))
+        cooldown_key = f"session:{session.id}:vision-cooldown:{speaker_role}:{incident_type}"
+        if cache.get(cooldown_key):
+            return Response(
+                {
+                    "flagged": False,
+                    "suppressed": True,
+                    "reason": "cooldown_active",
+                    "incident_type": incident_type,
+                    "severity": analysis.get("severity", "low"),
+                    "recommended_action": analysis.get("recommended_action", "none"),
+                    "confidence_score": confidence_score,
+                }
+            )
+        duplicate_window_seconds = max(
+            1, int(os.environ.get("VISION_FRAME_DEDUP_SECONDS", "3"))
+        )
+        if cache.get(dedupe_key):
+            return Response(
+                {
+                    "flagged": False,
+                    "suppressed": True,
+                    "reason": "duplicate_frame",
+                    "incident_type": incident_type,
+                    "severity": analysis.get("severity", "low"),
+                    "recommended_action": analysis.get("recommended_action", "none"),
+                    "confidence_score": confidence_score,
+                }
+            )
+
+        if speaker_role == "mentee":
+            snapshot = mentee_snapshot_for_incident(session)
+        else:
+            snapshot = {}
+
+        incident = SessionAbuseIncident.objects.create(
+            session=session,
+            incident_type=incident_type,
+            detection_source="ai_vision",
+            speaker_role=speaker_role,
+            transcript_snippet=str(analysis.get("notes", "")).strip(),
+            matched_terms=analysis.get("matched_terms", []),
+            severity=str(analysis.get("severity", "low")).strip().lower() or "low",
+            confidence_score=confidence_score,
+            recommended_action=str(analysis.get("recommended_action", "warn")).strip().lower() or "warn",
+            evidence_url=str(request.data.get("evidence_url", "")).strip(),
+            detection_payload={
+                "reported_by_role": participant_role,
+                "model": str(os.environ.get("OPENAI_VISION_MODERATION_MODEL", "gpt-4.1-mini")).strip(),
+                "source": "video_frame_auto",
+            },
+            flagged_mentee_snapshot=snapshot,
+            detection_notes=str(request.data.get("notes", "")).strip(),
+        )
+
+        if incident.severity in {"medium", "high"}:
+            SessionIssueReport.objects.update_or_create(
+                session=session,
+                defaults={
+                    "mentor": session.mentor,
+                    "category": "safety_concern",
+                    "status": "open",
+                    "description": (
+                        f"Video behavior alert ({incident.incident_type}) detected by AI vision. "
+                        f"severity={incident.severity}, action={incident.recommended_action}, "
+                        f"speaker_role={speaker_role}."
+                    ),
+                },
+            )
+
+        cache.set(cooldown_key, 1, timeout=cooldown_seconds)
+        cache.set(dedupe_key, 1, timeout=duplicate_window_seconds)
+        return Response(
+            {
+                "flagged": True,
+                "incident_id": incident.id,
+                "incident_type": incident.incident_type,
+                "severity": incident.severity,
+                "recommended_action": incident.recommended_action,
+                "confidence_score": incident.confidence_score,
+                "matched_terms": incident.matched_terms or [],
+                "escalated_to_issue_report": incident.severity in {"medium", "high"},
+            },
+            status=status.HTTP_201_CREATED,
         )
 
     @action(detail=True, methods=["get"], url_path="abuse-incidents")

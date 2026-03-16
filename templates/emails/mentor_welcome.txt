@@ -1,0 +1,8 @@
+Welcome to Bond Room, {{ mentor_name }}!
+
+Your mentor registration has been received.
+Thank you for joining our mission to support students.
+
+{% if dashboard_url %}Open your mentor dashboard: {{ dashboard_url }}
+
+{% endif %}Need help? Reply to this email{% if support_email %} or contact {{ support_email }}{% endif %}.
