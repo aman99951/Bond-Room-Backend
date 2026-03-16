@@ -1606,12 +1606,21 @@ class SessionViewSet(viewsets.ModelViewSet):
             return Response(serializer.data)
 
         signal_type = str(request.data.get("signal_type", "")).strip().lower()
-        if signal_type not in {"offer", "answer", "ice", "bye", "media_state", "safety_alert", "transcript"}:
+        if signal_type not in {
+            "offer",
+            "answer",
+            "ice",
+            "bye",
+            "media_state",
+            "safety_alert",
+            "transcript",
+            "transcript_bundle",
+        }:
             return Response(
                 {
                     "detail": (
                         "signal_type must be one of: offer, answer, ice, bye, media_state, "
-                        "safety_alert, transcript."
+                        "safety_alert, transcript, transcript_bundle."
                     )
                 },
                 status=status.HTTP_400_BAD_REQUEST,
@@ -1619,6 +1628,9 @@ class SessionViewSet(viewsets.ModelViewSet):
         payload = request.data.get("payload") or {}
         if not isinstance(payload, dict):
             return Response({"detail": "payload must be an object."}, status=status.HTTP_400_BAD_REQUEST)
+        if signal_type in {"transcript", "transcript_bundle"}:
+            payload = dict(payload)
+            payload["speaker_role"] = participant_role
 
         signal = SessionMeetingSignal.objects.create(
             session=session,
