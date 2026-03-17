@@ -26,6 +26,8 @@ PUBLIC_PATHS = {
     "/api/auth/parent-consent/verify-otp/",
     "/api/auth/mentor-contact/send-otp/",
     "/api/auth/mentor-contact/verify-otp/",
+    "/api/mentors/",
+    "/api/mentors/{id}/",
     "/api/schema/",
     "/api/docs/",
 }

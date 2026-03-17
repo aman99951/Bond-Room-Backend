@@ -72,6 +72,7 @@ REGISTER_PATHS = {
 
 CREATED_PATHS = {
     "/api/training-modules/quiz/start/",
+    "/api/sessions/{id}/report-behavior/",
 }
 
 
@@ -342,6 +343,8 @@ class ApiAutomationCoverageTests(APITestCase):
             "/api/sessions/{id}/recording/": self.session.id,
             "/api/sessions/{id}/recording-upload-signature/": self.session.id,
             "/api/sessions/{id}/analyze-transcript/": self.session.id,
+            "/api/sessions/{id}/analyze-video-frame/": self.session.id,
+            "/api/sessions/{id}/report-behavior/": self.session.id,
             "/api/sessions/{id}/abuse-incidents/": self.session.id,
             "/api/sessions/{id}/mentee-profile/": self.session.id,
             "/api/training-modules/{id}/": self.training_module.id,
@@ -446,6 +449,21 @@ class ApiAutomationCoverageTests(APITestCase):
             return {"mentor_id": self.mentor.id, "channel": "email", "otp": send.data["otp"]}
         if schema_path == "/api/auth/mobile-login/verify-otp/":
             return {"mobile": self.mentor.mobile, "role": "mentor", "otp": "123456"}
+        if schema_path == "/api/sessions/{id}/analyze-video-frame/":
+            return {
+                "frame_data_url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7Y7gkAAAAASUVORK5CYII=",
+                "speaker_role": "mentee",
+                "notes": "automation frame check",
+            }
+        if schema_path == "/api/sessions/{id}/report-behavior/":
+            return {
+                "speaker_role": "mentee",
+                "labels": ["abusive language"],
+                "notes": "automation safety signal",
+                "confidence_score": 0.92,
+                "severity": "medium",
+                "recommended_action": "escalate_review",
+            }
         if schema_path == "/api/login/":
             return {"email": self.mentee_user.email, "password": self.mentee_password}
         if schema_path == "/api/admin/login/":
@@ -563,6 +581,10 @@ class ApiAutomationCoverageTests(APITestCase):
             )
         if schema_path == "/api/auth/mobile-login/verify-otp/":
             return "POST", "/api/auth/mobile-login/verify-otp/", {"mobile": self.mentor.mobile, "otp": "000000"}, {400}
+        if schema_path == "/api/mentors/":
+            return "POST", "/api/mentors/", {"first_name": "Bad"}, {401, 403}
+        if schema_path == "/api/mentors/{id}/":
+            return "GET", "/api/mentors/999999/", {}, {404}
         raise AssertionError(f"Unhandled negative public case for {schema_path}")
 
     def _request(self, method, path, payload, schema_path):
