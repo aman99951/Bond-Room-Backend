@@ -6,6 +6,7 @@ from datetime import timedelta
 from decimal import Decimal
 import re
 import urllib.request
+import urllib.error
 
 from django.contrib.auth import get_user_model
 from django.conf import settings
@@ -197,6 +198,91 @@ def parse_bool(value):
     if isinstance(value, str):
         return value.strip().lower() in {"1", "true", "yes", "on"}
     return False
+
+
+def transcribe_audio_chunk_with_openai(uploaded_file):
+    api_key = str(getattr(settings, "OPENAI_API_KEY", "") or "").strip()
+    if not api_key or not uploaded_file:
+        return "", "missing_api_key_or_file"
+
+    try:
+        audio_bytes = uploaded_file.read()
+    except Exception:
+        return "", "unable_to_read_audio_chunk"
+    if not audio_bytes:
+        return "", "empty_audio_chunk"
+
+    preferred_model = (
+        os.environ.get("OPENAI_REALTIME_TRANSCRIPTION_MODEL")
+        or os.environ.get("OPENAI_TRANSCRIPTION_MODEL")
+        or "whisper-1"
+    )
+    model_candidates = []
+    for item in [preferred_model, "gpt-4o-transcribe", "gpt-4o-mini-transcribe", "whisper-1"]:
+        candidate = str(item or "").strip()
+        if candidate and candidate not in model_candidates:
+            model_candidates.append(candidate)
+    filename = str(getattr(uploaded_file, "name", "") or "chunk.webm").strip() or "chunk.webm"
+    content_type = str(getattr(uploaded_file, "content_type", "") or "").strip() or "audio/webm"
+    boundary = f"----BondRoomBoundary{int(time.time() * 1000)}"
+
+    def _field(name, value):
+        return (
+            f"--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="{name}"\r\n\r\n'
+            f"{value}\r\n"
+        ).encode("utf-8")
+
+    file_header = (
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'
+        f"Content-Type: {content_type}\r\n\r\n"
+    ).encode("utf-8")
+    file_tail = b"\r\n"
+    end_marker = f"--{boundary}--\r\n".encode("utf-8")
+
+    last_error = "transcription_failed"
+    for model in model_candidates:
+        body = b"".join(
+            [
+                _field("model", model),
+                _field("response_format", "json"),
+                _field("language", "en"),
+                file_header,
+                audio_bytes,
+                file_tail,
+                end_marker,
+            ]
+        )
+        request = urllib.request.Request(
+            "https://api.openai.com/v1/audio/transcriptions",
+            data=body,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": f"multipart/form-data; boundary={boundary}",
+            },
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            text = str(payload.get("text", "") if isinstance(payload, dict) else "").strip()
+            if text:
+                return text, ""
+            last_error = f"empty_transcript:{model}"
+        except urllib.error.HTTPError as exc:
+            detail = ""
+            try:
+                detail = exc.read().decode("utf-8", errors="ignore").strip()
+            except Exception:
+                detail = ""
+            if len(detail) > 280:
+                detail = detail[:280]
+            last_error = f"{model}:HTTP{getattr(exc, 'code', 'ERR')}:{detail or exc.__class__.__name__}"
+            continue
+        except Exception as exc:
+            last_error = f"{model}:{exc.__class__.__name__}:{str(exc)[:180]}"
+            continue
+    return "", last_error
 
 
 def generate_meeting_summary_with_openai(session, transcript):
@@ -1615,12 +1701,17 @@ class SessionViewSet(viewsets.ModelViewSet):
             "safety_alert",
             "transcript",
             "transcript_bundle",
+            "mentor_transcript",
+            "mentee_transcript",
+            "mentor_bundle",
+            "mentee_bundle",
         }:
             return Response(
                 {
                     "detail": (
                         "signal_type must be one of: offer, answer, ice, bye, media_state, "
-                        "safety_alert, transcript, transcript_bundle."
+                        "safety_alert, transcript, transcript_bundle, mentor_transcript, "
+                        "mentee_transcript, mentor_bundle, mentee_bundle."
                     )
                 },
                 status=status.HTTP_400_BAD_REQUEST,
@@ -1628,7 +1719,14 @@ class SessionViewSet(viewsets.ModelViewSet):
         payload = request.data.get("payload") or {}
         if not isinstance(payload, dict):
             return Response({"detail": "payload must be an object."}, status=status.HTTP_400_BAD_REQUEST)
-        if signal_type in {"transcript", "transcript_bundle"}:
+        if signal_type in {
+            "transcript",
+            "transcript_bundle",
+            "mentor_transcript",
+            "mentee_transcript",
+            "mentor_bundle",
+            "mentee_bundle",
+        }:
             payload = dict(payload)
             payload["speaker_role"] = participant_role
 
@@ -1640,6 +1738,110 @@ class SessionViewSet(viewsets.ModelViewSet):
         )
         return Response(
             SessionMeetingSignalSerializer(signal, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=["post"], url_path="mentor-monitoring-transcript")
+    def mentor_monitoring_transcript(self, request, pk=None):
+        session = self.get_object()
+        participant_role = resolve_session_participant_role(request, session)
+        if participant_role != "mentor":
+            return Response({"detail": "Only mentor can post to this endpoint."}, status=status.HTTP_403_FORBIDDEN)
+
+        payload = request.data.get("payload") or {}
+        if not isinstance(payload, dict):
+            return Response({"detail": "payload must be an object."}, status=status.HTTP_400_BAD_REQUEST)
+
+        signal_type = str(request.data.get("signal_type", "mentor_transcript")).strip().lower()
+        if signal_type not in {"mentor_transcript", "mentor_bundle"}:
+            return Response(
+                {"detail": "signal_type must be one of: mentor_transcript, mentor_bundle."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        payload = dict(payload)
+        payload["speaker_role"] = "mentor"
+        signal = SessionMeetingSignal.objects.create(
+            session=session,
+            sender_role="mentor",
+            signal_type=signal_type,
+            payload=payload,
+        )
+        return Response(
+            SessionMeetingSignalSerializer(signal, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=["post"], url_path="mentee-monitoring-transcript")
+    def mentee_monitoring_transcript(self, request, pk=None):
+        session = self.get_object()
+        participant_role = resolve_session_participant_role(request, session)
+        if participant_role != "mentee":
+            return Response({"detail": "Only mentee can post to this endpoint."}, status=status.HTTP_403_FORBIDDEN)
+
+        payload = request.data.get("payload") or {}
+        if not isinstance(payload, dict):
+            return Response({"detail": "payload must be an object."}, status=status.HTTP_400_BAD_REQUEST)
+
+        signal_type = str(request.data.get("signal_type", "mentee_transcript")).strip().lower()
+        if signal_type not in {"mentee_transcript", "mentee_bundle"}:
+            return Response(
+                {"detail": "signal_type must be one of: mentee_transcript, mentee_bundle."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        payload = dict(payload)
+        payload["speaker_role"] = "mentee"
+        signal = SessionMeetingSignal.objects.create(
+            session=session,
+            sender_role="mentee",
+            signal_type=signal_type,
+            payload=payload,
+        )
+        return Response(
+            SessionMeetingSignalSerializer(signal, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=["post"], url_path="realtime-transcript-chunk")
+    def realtime_transcript_chunk(self, request, pk=None):
+        session = self.get_object()
+        participant_role = resolve_session_participant_role(request, session)
+        if participant_role not in {"mentor", "mentee"}:
+            return Response({"detail": "Only mentor or mentee can stream transcript chunks."}, status=status.HTTP_403_FORBIDDEN)
+
+        audio_chunk = request.FILES.get("audio_chunk")
+        if not audio_chunk:
+            return Response({"detail": "audio_chunk file is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        transcript, stt_error = transcribe_audio_chunk_with_openai(audio_chunk)
+        transcript_excerpt = re.sub(r"\s+", " ", str(transcript or "").strip())
+        if not transcript_excerpt:
+            payload = {"transcript_excerpt": "", "signal": None}
+            if settings.DEBUG:
+                payload["transcription_error"] = stt_error or "unknown"
+                payload["audio_size_bytes"] = int(getattr(audio_chunk, "size", 0) or 0)
+                payload["audio_content_type"] = str(getattr(audio_chunk, "content_type", "") or "")
+            return Response(payload, status=status.HTTP_200_OK)
+
+        transcript_excerpt = transcript_excerpt[:1200]
+        signal_type = "mentor_transcript" if participant_role == "mentor" else "mentee_transcript"
+        payload = {
+            "speaker_role": participant_role,
+            "transcript_excerpt": transcript_excerpt,
+            "created_at": str(request.data.get("created_at", "")).strip() or timezone.now().isoformat(),
+        }
+        signal = SessionMeetingSignal.objects.create(
+            session=session,
+            sender_role=participant_role,
+            signal_type=signal_type,
+            payload=payload,
+        )
+        return Response(
+            {
+                "transcript_excerpt": transcript_excerpt,
+                "signal": SessionMeetingSignalSerializer(signal, context={"request": request}).data,
+            },
             status=status.HTTP_201_CREATED,
         )
 

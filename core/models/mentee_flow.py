@@ -166,6 +166,14 @@ class SessionMeetingSignal(models.Model):
         ("answer", "Answer"),
         ("ice", "ICE Candidate"),
         ("bye", "Call Ended"),
+        ("media_state", "Media State"),
+        ("safety_alert", "Safety Alert"),
+        ("transcript", "Transcript"),
+        ("transcript_bundle", "Transcript Bundle"),
+        ("mentor_transcript", "Mentor Transcript"),
+        ("mentee_transcript", "Mentee Transcript"),
+        ("mentor_bundle", "Mentor Transcript Bundle"),
+        ("mentee_bundle", "Mentee Transcript Bundle"),
     ]
     SENDER_ROLE_CHOICES = [
         ("mentee", "Mentee"),
