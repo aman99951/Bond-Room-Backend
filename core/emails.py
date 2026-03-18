@@ -3,6 +3,7 @@ import logging
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
+from django.utils import timezone
 
 
 logger = logging.getLogger(__name__)
@@ -73,4 +74,62 @@ def send_mentee_welcome_email(mentee) -> bool:
         return True
     except Exception:
         logger.exception("Failed to send mentee welcome email to %s", recipient)
+        return False
+
+
+def send_admin_safety_alert_email(
+    *,
+    session,
+    speaker_role: str,
+    warning_count: int,
+    warning_limit_before_disconnect: int,
+    disconnect_on_warning: int,
+    reason: str = "",
+) -> bool:
+    try:
+        from .models import AdminAccount
+    except Exception:
+        logger.exception("Unable to import AdminAccount for safety alert email")
+        return False
+
+    recipients = []
+    for row in AdminAccount.objects.select_related("user").all():
+        email = str(getattr(getattr(row, "user", None), "email", "") or "").strip()
+        if email and email not in recipients:
+            recipients.append(email)
+    fallback_admin_email = str(getattr(settings, "ADMIN_ALERT_EMAIL", "") or "").strip()
+    if fallback_admin_email and fallback_admin_email not in recipients:
+        recipients.append(fallback_admin_email)
+    if not recipients:
+        return False
+
+    session_id = getattr(session, "id", None)
+    subject = f"[Bond Room] Session {session_id} auto-disconnected after warning limit"
+    body_lines = [
+        "A meeting has been auto-disconnected due to repeated safety warnings.",
+        "",
+        f"Session ID: {session_id}",
+        f"Speaker role: {speaker_role}",
+        f"Warnings count: {warning_count}",
+        f"Warning limit before disconnect: {warning_limit_before_disconnect}",
+        f"Disconnect on warning: {disconnect_on_warning}",
+        f"Session status: {getattr(session, 'status', '')}",
+        f"Event time (UTC): {timezone.now().isoformat()}",
+    ]
+    reason_text = str(reason or "").strip()
+    if reason_text:
+        body_lines.extend(["", f"Reason: {reason_text}"])
+    body = "\n".join(body_lines)
+
+    try:
+        message = EmailMultiAlternatives(
+            subject=subject,
+            body=body,
+            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "") or None,
+            to=recipients,
+        )
+        message.send(fail_silently=False)
+        return True
+    except Exception:
+        logger.exception("Failed to send admin safety alert email for session %s", session_id)
         return False

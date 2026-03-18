@@ -118,7 +118,11 @@ from .quiz import (
 )
 from .abuse_monitoring import classify_abuse, classify_behavior_signal, classify_video_behavior_frame
 from .signals import generate_recommendations_for_request
-from .emails import send_mentee_welcome_email, send_mentor_welcome_email
+from .emails import (
+    send_admin_safety_alert_email,
+    send_mentee_welcome_email,
+    send_mentor_welcome_email,
+)
 
 try:
     from cloudinary.utils import api_sign_request
@@ -198,6 +202,88 @@ def parse_bool(value):
     if isinstance(value, str):
         return value.strip().lower() in {"1", "true", "yes", "on"}
     return False
+
+
+def warning_policy_config():
+    warning_limit_before_disconnect = max(
+        1, int(os.environ.get("SESSION_WARNING_LIMIT_BEFORE_DISCONNECT", "4"))
+    )
+    disconnect_on_warning = max(
+        warning_limit_before_disconnect + 1,
+        int(os.environ.get("SESSION_DISCONNECT_ON_WARNING", "5")),
+    )
+    return warning_limit_before_disconnect, disconnect_on_warning
+
+
+def enforce_session_warning_policy(*, session, speaker_role, reason="", incident_id=None):
+    role_value = str(speaker_role or "").strip().lower()
+    if role_value not in {"mentor", "mentee"}:
+        return {
+            "warning_count": 0,
+            "warning_limit_before_disconnect": warning_policy_config()[0],
+            "disconnect_on_warning": warning_policy_config()[1],
+            "auto_disconnected": False,
+            "disconnect_signal_id": None,
+        }
+
+    warning_limit_before_disconnect, disconnect_on_warning = warning_policy_config()
+    warning_count = SessionAbuseIncident.objects.filter(
+        session=session,
+        speaker_role=role_value,
+    ).count()
+    should_disconnect = warning_count >= disconnect_on_warning
+    disconnect_signal_id = None
+
+    if should_disconnect:
+        disconnect_guard_key = f"session:{session.id}:warning-disconnect:{role_value}"
+        if not cache.get(disconnect_guard_key):
+            description = (
+                f"Session auto-disconnected after {warning_count} warnings "
+                f"(disconnect threshold {disconnect_on_warning}) from {role_value}."
+            )
+            SessionIssueReport.objects.update_or_create(
+                session=session,
+                defaults={
+                    "mentor": session.mentor,
+                    "category": "safety_concern",
+                    "status": "open",
+                    "description": description,
+                },
+            )
+            disconnect_signal = SessionMeetingSignal.objects.create(
+                session=session,
+                sender_role="system",
+                signal_type="bye",
+                payload={
+                    "reason": "warning_limit_exceeded",
+                    "speaker_role": role_value,
+                    "warning_count": warning_count,
+                    "warning_limit_before_disconnect": warning_limit_before_disconnect,
+                    "disconnect_on_warning": disconnect_on_warning,
+                    "incident_id": incident_id,
+                },
+            )
+            disconnect_signal_id = disconnect_signal.id
+            if str(session.status or "").strip().lower() not in {"completed", "canceled", "no_show"}:
+                Session.objects.filter(id=session.id).update(status="canceled")
+                session.status = "canceled"
+            send_admin_safety_alert_email(
+                session=session,
+                speaker_role=role_value,
+                warning_count=warning_count,
+                warning_limit_before_disconnect=warning_limit_before_disconnect,
+                disconnect_on_warning=disconnect_on_warning,
+                reason=reason,
+            )
+            cache.set(disconnect_guard_key, 1, timeout=24 * 60 * 60)
+
+    return {
+        "warning_count": warning_count,
+        "warning_limit_before_disconnect": warning_limit_before_disconnect,
+        "disconnect_on_warning": disconnect_on_warning,
+        "auto_disconnected": should_disconnect,
+        "disconnect_signal_id": disconnect_signal_id,
+    }
 
 
 def transcribe_audio_chunk_with_openai(uploaded_file):
@@ -2015,6 +2101,13 @@ class SessionViewSet(viewsets.ModelViewSet):
 
         analysis = classify_abuse(transcript)
         incident = None
+        warning_policy = {
+            "warning_count": 0,
+            "warning_limit_before_disconnect": warning_policy_config()[0],
+            "disconnect_on_warning": warning_policy_config()[1],
+            "auto_disconnected": False,
+            "disconnect_signal_id": None,
+        }
         snapshot = {}
         if analysis["flagged"]:
             if speaker_role == "mentee":
@@ -2064,6 +2157,12 @@ class SessionViewSet(viewsets.ModelViewSet):
                     flagged_mentee_snapshot=snapshot,
                     detection_notes=str(request.data.get("notes", "")).strip(),
                 )
+                warning_policy = enforce_session_warning_policy(
+                    session=session,
+                    speaker_role=speaker_role,
+                    reason="abusive transcript detected",
+                    incident_id=incident.id,
+                )
 
         summary_payload = None
         summary_error = ""
@@ -2108,6 +2207,11 @@ class SessionViewSet(viewsets.ModelViewSet):
                 "action_items": summary_payload.get("action_items", []) if summary_payload else [],
                 "summary_model": summary_payload.get("model", "") if summary_payload else "",
                 "summary_error": summary_error,
+                "warning_count": warning_policy["warning_count"],
+                "warning_limit_before_disconnect": warning_policy["warning_limit_before_disconnect"],
+                "disconnect_on_warning": warning_policy["disconnect_on_warning"],
+                "auto_disconnected": warning_policy["auto_disconnected"],
+                "disconnect_signal_id": warning_policy["disconnect_signal_id"],
             }
         )
 
@@ -2209,6 +2313,12 @@ class SessionViewSet(viewsets.ModelViewSet):
             flagged_mentee_snapshot=snapshot,
             detection_notes=notes,
         )
+        warning_policy = enforce_session_warning_policy(
+            session=session,
+            speaker_role=speaker_role,
+            reason=f"behavior alert ({incident_type})",
+            incident_id=incident.id,
+        )
 
         if severity in {"medium", "high"}:
             SessionIssueReport.objects.update_or_create(
@@ -2234,6 +2344,11 @@ class SessionViewSet(viewsets.ModelViewSet):
                 "recommended_action": incident.recommended_action,
                 "confidence_score": incident.confidence_score,
                 "escalated_to_issue_report": severity in {"medium", "high"},
+                "warning_count": warning_policy["warning_count"],
+                "warning_limit_before_disconnect": warning_policy["warning_limit_before_disconnect"],
+                "disconnect_on_warning": warning_policy["disconnect_on_warning"],
+                "auto_disconnected": warning_policy["auto_disconnected"],
+                "disconnect_signal_id": warning_policy["disconnect_signal_id"],
             },
             status=status.HTTP_201_CREATED,
         )
@@ -2422,6 +2537,12 @@ class SessionViewSet(viewsets.ModelViewSet):
             flagged_mentee_snapshot=snapshot,
             detection_notes=str(request.data.get("notes", "")).strip(),
         )
+        warning_policy = enforce_session_warning_policy(
+            session=session,
+            speaker_role=speaker_role,
+            reason=f"ai vision incident ({incident.incident_type})",
+            incident_id=incident.id,
+        )
 
         if incident.severity in {"medium", "high"}:
             SessionIssueReport.objects.update_or_create(
@@ -2450,6 +2571,11 @@ class SessionViewSet(viewsets.ModelViewSet):
                 "confidence_score": incident.confidence_score,
                 "matched_terms": incident.matched_terms or [],
                 "escalated_to_issue_report": incident.severity in {"medium", "high"},
+                "warning_count": warning_policy["warning_count"],
+                "warning_limit_before_disconnect": warning_policy["warning_limit_before_disconnect"],
+                "disconnect_on_warning": warning_policy["disconnect_on_warning"],
+                "auto_disconnected": warning_policy["auto_disconnected"],
+                "disconnect_signal_id": warning_policy["disconnect_signal_id"],
             },
             status=status.HTTP_201_CREATED,
         )
