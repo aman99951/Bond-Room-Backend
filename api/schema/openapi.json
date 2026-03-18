@@ -1809,6 +1809,9 @@
             "readOnly": true,
             "type": "string"
           },
+          "mentee_monitoring_words": {
+            "type": "object"
+          },
           "mentee_name": {
             "readOnly": true,
             "type": "string"
@@ -1823,6 +1826,9 @@
             "format": "date-time",
             "nullable": true,
             "type": "string"
+          },
+          "mentor_monitoring_words": {
+            "type": "object"
           },
           "mentor_notes": {
             "type": "string"
@@ -7283,6 +7289,57 @@
         ]
       }
     },
+    "/api/sessions/{id}/analyze-video-frame/": {
+      "post": {
+        "description": "",
+        "operationId": "analyzeVideoFrameSessionPost",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this session.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
     "/api/sessions/{id}/disposition/": {
       "post": {
         "description": "",
@@ -7547,6 +7604,57 @@
         ]
       }
     },
+    "/api/sessions/{id}/mentee-monitoring-transcript/": {
+      "post": {
+        "description": "",
+        "operationId": "menteeMonitoringTranscriptSessionPost",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this session.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
     "/api/sessions/{id}/mentee-profile/": {
       "get": {
         "description": "",
@@ -7564,6 +7672,108 @@
         ],
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/sessions/{id}/mentor-monitoring-transcript/": {
+      "post": {
+        "description": "",
+        "operationId": "mentorMonitoringTranscriptSessionPost",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this session.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/sessions/{id}/realtime-transcript-chunk/": {
+      "post": {
+        "description": "",
+        "operationId": "realtimeTranscriptChunkSessionPost",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this session.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -7664,6 +7874,57 @@
       "post": {
         "description": "",
         "operationId": "recordingSessionPost",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this session.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/sessions/{id}/report-behavior/": {
+      "post": {
+        "description": "",
+        "operationId": "reportBehaviorSessionPost",
         "parameters": [
           {
             "description": "A unique integer value identifying this session.",
