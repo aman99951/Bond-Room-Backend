@@ -5,6 +5,7 @@ import warnings
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 from rest_framework.schemas.openapi import SchemaGenerator
 from rest_framework.test import APITestCase
@@ -73,6 +74,8 @@ REGISTER_PATHS = {
 CREATED_PATHS = {
     "/api/training-modules/quiz/start/",
     "/api/sessions/{id}/report-behavior/",
+    "/api/sessions/{id}/mentor-monitoring-transcript/",
+    "/api/sessions/{id}/mentee-monitoring-transcript/",
 }
 
 
@@ -305,6 +308,12 @@ class ApiAutomationCoverageTests(APITestCase):
     def _clear_authentication(self):
         self.client.force_authenticate(user=None)
 
+    def _authenticate_as_mentor(self):
+        self.client.force_authenticate(user=self.mentor_user)
+
+    def _authenticate_as_mentee(self):
+        self.client.force_authenticate(user=self.mentee_user)
+
     def _endpoint_id_map(self):
         return {
             "/api/donation-transactions/{id}/": self.donation.id,
@@ -347,6 +356,9 @@ class ApiAutomationCoverageTests(APITestCase):
             "/api/sessions/{id}/report-behavior/": self.session.id,
             "/api/sessions/{id}/abuse-incidents/": self.session.id,
             "/api/sessions/{id}/mentee-profile/": self.session.id,
+            "/api/sessions/{id}/mentor-monitoring-transcript/": self.session.id,
+            "/api/sessions/{id}/mentee-monitoring-transcript/": self.session.id,
+            "/api/sessions/{id}/realtime-transcript-chunk/": self.session.id,
             "/api/training-modules/{id}/": self.training_module.id,
             "/api/training-modules/{id}/watch-video/": self.training_module.id,
         }
@@ -482,6 +494,15 @@ class ApiAutomationCoverageTests(APITestCase):
             return {}
         if schema_path == "/api/sessions/{id}/meeting-signals/":
             return {"signal_type": "offer", "payload": {"sdp": "seed"}}
+        if schema_path == "/api/sessions/{id}/mentor-monitoring-transcript/":
+            return {"signal_type": "mentor_transcript", "payload": {"transcript_excerpt": "mentor seed"}}
+        if schema_path == "/api/sessions/{id}/mentee-monitoring-transcript/":
+            return {"signal_type": "mentee_transcript", "payload": {"transcript_excerpt": "mentee seed"}}
+        if schema_path == "/api/sessions/{id}/realtime-transcript-chunk/":
+            return {
+                "audio_chunk": SimpleUploadedFile("chunk.webm", b"RIFFseedWEBM", content_type="audio/webm"),
+                "created_at": timezone.now().isoformat(),
+            }
         if schema_path == "/api/sessions/{id}/recording/":
             return {"status": "recording", "metadata": {"source": "automation"}}
         if schema_path == "/api/sessions/{id}/recording-upload-signature/":
@@ -604,6 +625,8 @@ class ApiAutomationCoverageTests(APITestCase):
                 return_value=(mock_questions, "openai"),
             ):
                 return client_method(path, payload or {}, format="json")
+        if schema_path == "/api/sessions/{id}/realtime-transcript-chunk/" and method == "POST":
+            return client_method(path, payload or {})
         if method in {"POST", "PUT", "PATCH"}:
             return client_method(path, payload or {}, format="json")
         return client_method(path, format="json")
@@ -612,6 +635,9 @@ class ApiAutomationCoverageTests(APITestCase):
         if schema_path == "/api/sessions/{id}/recording-upload-signature/":
             # Local/test environments may intentionally omit Cloudinary credentials.
             return {200, 503}
+        if schema_path == "/api/sessions/{id}/realtime-transcript-chunk/":
+            # May return 200 with empty transcript when STT provider is unavailable.
+            return {200, 201}
         if schema_path in REGISTER_PATHS or schema_path in CREATED_PATHS:
             return {201}
         return {200}
@@ -640,6 +666,13 @@ class ApiAutomationCoverageTests(APITestCase):
                 self._clear_authentication()
             else:
                 self._authenticate_as_admin()
+                if schema_path == "/api/sessions/{id}/mentor-monitoring-transcript/":
+                    self._authenticate_as_mentor()
+                elif schema_path in {
+                    "/api/sessions/{id}/mentee-monitoring-transcript/",
+                    "/api/sessions/{id}/realtime-transcript-chunk/",
+                }:
+                    self._authenticate_as_mentee()
 
             response = self._request(method, path, payload, schema_path)
             self.assertIn(
