@@ -104,9 +104,9 @@ def send_admin_safety_alert_email(
         return False
 
     session_id = getattr(session, "id", None)
-    subject = f"[Bond Room] Session {session_id} auto-disconnected after warning limit"
+    subject = f"[Bond Room] Safety alert for session {session_id}"
     body_lines = [
-        "A meeting has been auto-disconnected due to repeated safety warnings.",
+        "A meeting has triggered safety warnings and requires admin review.",
         "",
         f"Session ID: {session_id}",
         f"Speaker role: {speaker_role}",

@@ -231,15 +231,17 @@ def enforce_session_warning_policy(*, session, speaker_role, reason="", incident
         session=session,
         speaker_role=role_value,
     ).count()
-    should_disconnect = warning_count >= disconnect_on_warning
     disconnect_signal_id = None
 
-    if should_disconnect:
-        disconnect_guard_key = f"session:{session.id}:warning-disconnect:{role_value}"
-        if not cache.get(disconnect_guard_key):
+    admin_alert_threshold = max(
+        1, int(os.environ.get("SESSION_ADMIN_ALERT_ON_WARNING", "1"))
+    )
+    if warning_count >= admin_alert_threshold:
+        alert_guard_key = f"session:{session.id}:warning-alert:{role_value}:{warning_count}"
+        if not cache.get(alert_guard_key):
             description = (
-                f"Session auto-disconnected after {warning_count} warnings "
-                f"(disconnect threshold {disconnect_on_warning}) from {role_value}."
+                f"Safety warnings reached {warning_count} for {role_value} "
+                f"(alert threshold {admin_alert_threshold})."
             )
             SessionIssueReport.objects.update_or_create(
                 session=session,
@@ -250,23 +252,6 @@ def enforce_session_warning_policy(*, session, speaker_role, reason="", incident
                     "description": description,
                 },
             )
-            disconnect_signal = SessionMeetingSignal.objects.create(
-                session=session,
-                sender_role="system",
-                signal_type="bye",
-                payload={
-                    "reason": "warning_limit_exceeded",
-                    "speaker_role": role_value,
-                    "warning_count": warning_count,
-                    "warning_limit_before_disconnect": warning_limit_before_disconnect,
-                    "disconnect_on_warning": disconnect_on_warning,
-                    "incident_id": incident_id,
-                },
-            )
-            disconnect_signal_id = disconnect_signal.id
-            if str(session.status or "").strip().lower() not in {"completed", "canceled", "no_show"}:
-                Session.objects.filter(id=session.id).update(status="canceled")
-                session.status = "canceled"
             send_admin_safety_alert_email(
                 session=session,
                 speaker_role=role_value,
@@ -275,13 +260,13 @@ def enforce_session_warning_policy(*, session, speaker_role, reason="", incident
                 disconnect_on_warning=disconnect_on_warning,
                 reason=reason,
             )
-            cache.set(disconnect_guard_key, 1, timeout=24 * 60 * 60)
+            cache.set(alert_guard_key, 1, timeout=24 * 60 * 60)
 
     return {
         "warning_count": warning_count,
         "warning_limit_before_disconnect": warning_limit_before_disconnect,
         "disconnect_on_warning": disconnect_on_warning,
-        "auto_disconnected": should_disconnect,
+        "auto_disconnected": False,
         "disconnect_signal_id": disconnect_signal_id,
     }
 
@@ -1754,6 +1739,47 @@ class SessionViewSet(viewsets.ModelViewSet):
                 "mentor_joined_at": update_fields.get("mentor_joined_at"),
                 "mentee_joined_at": update_fields.get("mentee_joined_at"),
                 "room_key": f"session-{session.id}",
+            }
+        )
+
+    @action(detail=True, methods=["post"], url_path="terminate")
+    def terminate(self, request, pk=None):
+        require_role(request, {ROLE_ADMIN})
+        session = self.get_object()
+        status_value = str(session.status or "").strip().lower()
+        if status_value in {"completed", "canceled", "no_show"}:
+            return Response(
+                {"detail": f"Session already marked as {status_value}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        reason = str(request.data.get("reason", "")).strip()
+        payload = {
+            "reason": "admin_terminated",
+            "note": reason or "Admin terminated the session.",
+            "created_at": timezone.now().isoformat(),
+        }
+        signal = SessionMeetingSignal.objects.create(
+            session=session,
+            sender_role="admin",
+            signal_type="bye",
+            payload=payload,
+        )
+        Session.objects.filter(id=session.id).update(status="canceled")
+        SessionIssueReport.objects.update_or_create(
+            session=session,
+            defaults={
+                "mentor": session.mentor,
+                "category": "safety_concern",
+                "status": "open",
+                "description": payload["note"],
+            },
+        )
+        return Response(
+            {
+                "status": "canceled",
+                "signal_id": signal.id,
+                "reason": payload["note"],
             }
         )
 
