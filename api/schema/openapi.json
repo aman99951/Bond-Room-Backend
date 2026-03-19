@@ -7972,6 +7972,57 @@
         ]
       }
     },
+    "/api/sessions/{id}/terminate/": {
+      "post": {
+        "description": "",
+        "operationId": "terminateSessionPost",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this session.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
     "/api/token/refresh/": {
       "post": {
         "description": "Takes a refresh type JSON web token and returns an access type JSON web\ntoken if the refresh token is valid.",

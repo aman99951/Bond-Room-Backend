@@ -359,6 +359,7 @@ class ApiAutomationCoverageTests(APITestCase):
             "/api/sessions/{id}/mentor-monitoring-transcript/": self.session.id,
             "/api/sessions/{id}/mentee-monitoring-transcript/": self.session.id,
             "/api/sessions/{id}/realtime-transcript-chunk/": self.session.id,
+            "/api/sessions/{id}/terminate/": self.session.id,
             "/api/training-modules/{id}/": self.training_module.id,
             "/api/training-modules/{id}/watch-video/": self.training_module.id,
         }
