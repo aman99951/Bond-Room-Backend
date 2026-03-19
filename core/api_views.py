@@ -1159,7 +1159,9 @@ class MentorViewSet(viewsets.ModelViewSet):
         elif mentee_id:
             req = MenteeRequest.objects.filter(mentee_id=mentee_id).order_by("-created_at").first()
         if not req:
-            return Response({"detail": "No request found."}, status=404)
+            if mentee_request_id:
+                return Response({"detail": "No request found."}, status=404)
+            return Response([])
 
         should_refresh = role == ROLE_MENTEE or request.query_params.get("refresh") in {"1", "true", "True"}
         if should_refresh:
