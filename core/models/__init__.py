@@ -29,6 +29,7 @@ from .mentor_onboarding import (
 from .matching import MatchRecommendation, MenteeRequest
 from .admin_account import AdminAccount
 from .user_profile import UserProfile
+from .volunteer import VolunteerEvent, VolunteerEventRegistration
 
 __all__ = [
     'Mentee',
@@ -57,4 +58,6 @@ __all__ = [
     'MatchRecommendation',
     'AdminAccount',
     'UserProfile',
+    'VolunteerEvent',
+    'VolunteerEventRegistration',
 ]

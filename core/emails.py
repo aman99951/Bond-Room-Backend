@@ -133,3 +133,46 @@ def send_admin_safety_alert_email(
     except Exception:
         logger.exception("Failed to send admin safety alert email for session %s", session_id)
         return False
+
+
+def send_volunteer_registration_confirmation_email(registration) -> bool:
+    recipient = str(getattr(registration, "email", "") or "").strip()
+    if not recipient:
+        return False
+
+    event = getattr(registration, "volunteer_event", None)
+    event_title = str(getattr(event, "title", "") or "").strip() or "Volunteer Event"
+    event_date = str(getattr(event, "date", "") or "").strip()
+    event_time = str(getattr(event, "time", "") or "").strip()
+    event_location = str(getattr(event, "location", "") or "").strip()
+    participant_name = str(getattr(registration, "full_name", "") or "").strip() or "Participant"
+
+    subject = f"Registration Confirmed: {event_title}"
+    body_lines = [
+        f"Hi {participant_name},",
+        "",
+        "Your volunteer event registration is confirmed.",
+        "",
+        f"Event: {event_title}",
+        f"Date: {event_date or '-'}",
+        f"Time: {event_time or '-'}",
+        f"Location: {event_location or '-'}",
+        "",
+        "Thank you for volunteering with Bond Room.",
+    ]
+    body = "\n".join(body_lines)
+
+    try:
+        message = EmailMultiAlternatives(
+            subject=subject,
+            body=body,
+            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "") or None,
+            to=[recipient],
+        )
+        message.send(fail_silently=False)
+        return True
+    except Exception:
+        logger.exception(
+            "Failed to send volunteer registration confirmation email to %s", recipient
+        )
+        return False

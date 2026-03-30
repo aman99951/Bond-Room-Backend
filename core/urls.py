@@ -33,6 +33,8 @@ from .api_views import (
     SessionIssueReportViewSet,
     SessionViewSet,
     TrainingModuleViewSet,
+    VolunteerEventRegistrationViewSet,
+    VolunteerEventViewSet,
 )
 
 router = DefaultRouter()
@@ -56,6 +58,8 @@ router.register(r"mentor-wallets", MentorWalletViewSet, basename="mentor-wallet"
 router.register(r"payout-transactions", PayoutTransactionViewSet, basename="payout-transaction")
 router.register(r"donation-transactions", DonationTransactionViewSet, basename="donation-transaction")
 router.register(r"session-issue-reports", SessionIssueReportViewSet, basename="session-issue-report")
+router.register(r"volunteer-events", VolunteerEventViewSet, basename="volunteer-event")
+router.register(r"volunteer-event-registrations", VolunteerEventRegistrationViewSet, basename="volunteer-event-registration")
 
 
 urlpatterns = [

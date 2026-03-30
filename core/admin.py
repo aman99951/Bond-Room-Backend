@@ -38,6 +38,8 @@ from .models import (
     SessionRecording,
     TrainingModule,
     UserProfile,
+    VolunteerEvent,
+    VolunteerEventRegistration,
 )
 
 User = get_user_model()
@@ -577,6 +579,55 @@ class SessionAdmin(admin.ModelAdmin):
 class SessionFeedbackAdmin(admin.ModelAdmin):
     list_display = ('session', 'rating', 'submitted_at')
     list_filter = ('rating',)
+
+
+@admin.register(VolunteerEvent)
+class VolunteerEventAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "title",
+        "status",
+        "date",
+        "completed_on",
+        "stream",
+        "location",
+        "seats",
+        "is_active",
+        "updated_at",
+    )
+    list_filter = ("status", "stream", "is_active")
+    search_fields = ("title", "stream", "location", "organizer")
+    ordering = ("status", "date", "-completed_on", "id")
+
+
+@admin.register(VolunteerEventRegistration)
+class VolunteerEventRegistrationAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "volunteer_event",
+        "mentee",
+        "submitted_by_role",
+        "full_name",
+        "email",
+        "phone",
+        "city",
+        "state",
+        "country",
+        "created_at",
+    )
+    list_filter = ("submitted_by_role", "country", "state", "city", "consent", "created_at")
+    search_fields = (
+        "full_name",
+        "email",
+        "phone",
+        "team_name",
+        "school_or_college",
+        "volunteer_event__title",
+        "mentee__email",
+        "mentee__first_name",
+        "mentee__last_name",
+    )
+    ordering = ("-created_at", "-id")
 
 
 @admin.register(MenteeRequest)

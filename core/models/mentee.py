@@ -20,6 +20,7 @@ class Mentee(models.Model):
     gender = models.CharField(max_length=32, choices=GENDER_CHOICES)
     city_state = models.CharField(max_length=150, blank=True)
     timezone = models.CharField(max_length=50, blank=True)
+    mobile = models.CharField(max_length=20, blank=True)
     parent_guardian_consent = models.BooleanField(default=False)
     parent_mobile = models.CharField(max_length=20, blank=True)
     record_consent = models.BooleanField(default=False)

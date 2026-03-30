@@ -35,6 +35,8 @@ from .models import (
     SessionRecording,
     TrainingModule,
     UserProfile,
+    VolunteerEvent,
+    VolunteerEventRegistration,
 )
 
 
@@ -77,6 +79,18 @@ def find_existing_mentee_by_parent_mobile(mobile_value: str, *, exclude_id=None)
         if exclude_id and mentee.id == exclude_id:
             continue
         if normalize_mobile(mentee.parent_mobile) == normalized:
+            return mentee
+    return None
+
+
+def find_existing_mentee_by_mobile(mobile_value: str, *, exclude_id=None):
+    normalized = normalize_mobile(mobile_value)
+    if not normalized:
+        return None
+    for mentee in Mentee.objects.all().order_by("-id").only("id", "mobile"):
+        if exclude_id and mentee.id == exclude_id:
+            continue
+        if normalize_mobile(getattr(mentee, "mobile", "")) == normalized:
             return mentee
     return None
 
@@ -585,6 +599,42 @@ class MenteeRequestSerializer(serializers.ModelSerializer):
         }
 
 
+class VolunteerEventSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = VolunteerEvent
+        fields = "__all__"
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        uploaded_file_url = data.get("image_file", "")
+        if uploaded_file_url:
+            data["image"] = build_absolute_media_url(uploaded_file_url, request=request)
+        else:
+            data["image"] = build_absolute_media_url(data.get("image", ""), request=request)
+        return data
+
+
+class VolunteerEventRegistrationSerializer(serializers.ModelSerializer):
+    volunteer_event_title = serializers.CharField(source="volunteer_event.title", read_only=True)
+    volunteer_event_date = serializers.DateField(source="volunteer_event.date", read_only=True)
+    volunteer_event_time = serializers.CharField(source="volunteer_event.time", read_only=True)
+
+    class Meta:
+        model = VolunteerEventRegistration
+        fields = "__all__"
+        read_only_fields = ("mentee", "submitted_by_role")
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        event = attrs.get("volunteer_event")
+        if event and event.status != VolunteerEvent.STATUS_UPCOMING:
+            raise serializers.ValidationError({"volunteer_event": "Registration is allowed only for upcoming events."})
+        if attrs.get("consent") is not True:
+            raise serializers.ValidationError({"consent": "Consent is required."})
+        return attrs
+
+
 class MenteeRegisterSerializer(serializers.Serializer):
     first_name = serializers.CharField(max_length=100)
     last_name = serializers.CharField(max_length=100)
@@ -594,6 +644,7 @@ class MenteeRegisterSerializer(serializers.Serializer):
     gender = serializers.ChoiceField(choices=Mentee.GENDER_CHOICES)
     city_state = serializers.CharField(max_length=150, required=False, allow_blank=True)
     timezone = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    mobile = serializers.CharField(max_length=20, required=False, allow_blank=True)
     parent_guardian_consent = serializers.BooleanField(required=False, default=False)
     parent_mobile = serializers.CharField(max_length=20, required=False, allow_blank=True)
     record_consent = serializers.BooleanField(required=False, default=False)
@@ -605,8 +656,10 @@ class MenteeRegisterSerializer(serializers.Serializer):
     def validate(self, attrs):
         attrs = super().validate(attrs)
         email = str(attrs.get("email", "")).strip().lower()
+        mobile = str(attrs.get("mobile", "")).strip()
         parent_mobile = str(attrs.get("parent_mobile", "")).strip()
         attrs["email"] = email
+        attrs["mobile"] = mobile
         attrs["parent_mobile"] = parent_mobile
 
         errors = {}
@@ -617,13 +670,19 @@ class MenteeRegisterSerializer(serializers.Serializer):
         elif User.objects.filter(email__iexact=email).exists():
             errors["email"] = "This email is already registered."
 
+        if mobile:
+            mentee_mobile_conflict = find_existing_mentee_by_mobile(mobile)
+            if mentee_mobile_conflict or find_existing_mentor_by_mobile(mobile):
+                errors["mobile"] = "This mobile number is already registered."
+
         if not parent_mobile:
             if errors:
                 raise serializers.ValidationError(errors)
             return attrs
 
         mentee_conflict = find_existing_mentee_by_parent_mobile(parent_mobile)
-        if mentee_conflict or find_existing_mentor_by_mobile(parent_mobile):
+        mentee_mobile_conflict = find_existing_mentee_by_mobile(parent_mobile)
+        if mentee_conflict or mentee_mobile_conflict or find_existing_mentor_by_mobile(parent_mobile):
             errors["parent_mobile"] = "This mobile number is already registered."
 
         if errors:
@@ -863,7 +922,11 @@ class ParentOtpSendSerializer(serializers.Serializer):
             parent_mobile,
             exclude_id=mentee_id,
         )
-        if mentee_conflict or find_existing_mentor_by_mobile(parent_mobile):
+        mentee_mobile_conflict = find_existing_mentee_by_mobile(
+            parent_mobile,
+            exclude_id=mentee_id,
+        )
+        if mentee_conflict or mentee_mobile_conflict or find_existing_mentor_by_mobile(parent_mobile):
             raise serializers.ValidationError(
                 {"parent_mobile": "This mobile number is already registered."}
             )

@@ -11,7 +11,7 @@ import urllib.error
 from django.contrib.auth import get_user_model
 from django.conf import settings
 from django.core.cache import cache
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Avg, Count, Q, Sum
 from django.contrib.auth.models import update_last_login
 from django.utils import timezone
@@ -54,6 +54,8 @@ from .models import (
     SessionRecording,
     TrainingModule,
     UserProfile,
+    VolunteerEvent,
+    VolunteerEventRegistration,
 )
 from .onboarding import (
     sync_mentor_onboarding_training_status,
@@ -106,6 +108,8 @@ from .serializers import (
     TrainingQuizStartSerializer,
     TrainingQuizSubmitSerializer,
     TrainingVideoWatchSerializer,
+    VolunteerEventRegistrationSerializer,
+    VolunteerEventSerializer,
     build_absolute_media_url,
     generate_otp,
     hash_otp,
@@ -122,6 +126,7 @@ from .emails import (
     send_admin_safety_alert_email,
     send_mentee_welcome_email,
     send_mentor_welcome_email,
+    send_volunteer_registration_confirmation_email,
 )
 
 try:
@@ -504,8 +509,10 @@ def find_mentee_by_mobile(mobile_value):
     normalized = normalize_mobile(mobile_value)
     if not normalized:
         return None
-    for mentee in Mentee.objects.all().order_by("-id").only("id", "email", "parent_mobile"):
-        if normalize_mobile(mentee.parent_mobile) == normalized:
+    for mentee in Mentee.objects.all().order_by("-id").only("id", "email", "parent_mobile", "mobile"):
+        parent_mobile = normalize_mobile(getattr(mentee, "parent_mobile", ""))
+        mentee_mobile = normalize_mobile(getattr(mentee, "mobile", ""))
+        if parent_mobile == normalized or mentee_mobile == normalized:
             return mentee
     return None
 
@@ -1486,6 +1493,87 @@ class MatchRecommendationViewSet(viewsets.ReadOnlyModelViewSet):
         if mentor_id:
             queryset = queryset.filter(mentor_id=mentor_id)
         return queryset
+
+
+class VolunteerEventViewSet(viewsets.ModelViewSet):
+    queryset = VolunteerEvent.objects.all()
+    serializer_class = VolunteerEventSerializer
+    permission_classes = [IsAuthenticatedWithAppRole]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        role = user_role(self.request.user)
+        if role != ROLE_ADMIN:
+            queryset = queryset.filter(is_active=True)
+        status_param = str(self.request.query_params.get("status", "")).strip().lower()
+        if status_param in {VolunteerEvent.STATUS_UPCOMING, VolunteerEvent.STATUS_COMPLETED}:
+            queryset = queryset.filter(status=status_param)
+        if status_param == VolunteerEvent.STATUS_COMPLETED:
+            return queryset.order_by("-completed_on", "-id")
+        if status_param == VolunteerEvent.STATUS_UPCOMING:
+            return queryset.order_by("date", "id")
+        return queryset.order_by("status", "date", "-completed_on", "id")
+
+    def perform_create(self, serializer):
+        require_role(self.request, {ROLE_ADMIN})
+        serializer.save()
+
+    def perform_update(self, serializer):
+        require_role(self.request, {ROLE_ADMIN})
+        serializer.save()
+
+    def destroy(self, request, *args, **kwargs):
+        require_role(request, {ROLE_ADMIN})
+        return super().destroy(request, *args, **kwargs)
+
+
+class VolunteerEventRegistrationViewSet(viewsets.ModelViewSet):
+    queryset = VolunteerEventRegistration.objects.all().select_related("volunteer_event", "mentee")
+    serializer_class = VolunteerEventRegistrationSerializer
+    permission_classes = [IsAuthenticatedWithAppRole]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        role = user_role(self.request.user)
+        if role == ROLE_ADMIN:
+            mentee_id = self.request.query_params.get("mentee_id")
+            event_id = self.request.query_params.get("volunteer_event_id")
+            if mentee_id:
+                queryset = queryset.filter(mentee_id=mentee_id)
+            if event_id:
+                queryset = queryset.filter(volunteer_event_id=event_id)
+            return queryset
+        if role == ROLE_MENTEE:
+            my_id = current_mentee_id(self.request)
+            queryset = queryset.filter(mentee_id=my_id) if my_id else queryset.none()
+            event_id = self.request.query_params.get("volunteer_event_id")
+            if event_id:
+                queryset = queryset.filter(volunteer_event_id=event_id)
+            return queryset
+        return queryset.none()
+
+    def perform_create(self, serializer):
+        require_role(self.request, {ROLE_MENTEE})
+        my_id = current_mentee_id(self.request)
+        if not my_id:
+            raise PermissionDenied("Mentee profile not found for this user.")
+        try:
+            registration = serializer.save(mentee_id=my_id, submitted_by_role=ROLE_MENTEE)
+            send_volunteer_registration_confirmation_email(registration)
+        except IntegrityError:
+            raise ValidationError({"detail": "You are already registered for this event."})
+
+    def update(self, request, *args, **kwargs):
+        require_role(request, {ROLE_ADMIN})
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        require_role(request, {ROLE_ADMIN})
+        return super().partial_update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        require_role(request, {ROLE_ADMIN})
+        return super().destroy(request, *args, **kwargs)
 
 
 class ParentConsentVerificationViewSet(viewsets.ModelViewSet):
