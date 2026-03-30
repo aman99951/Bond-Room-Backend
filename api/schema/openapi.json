@@ -373,6 +373,10 @@
             "maxLength": 100,
             "type": "string"
           },
+          "mobile": {
+            "maxLength": 20,
+            "type": "string"
+          },
           "parent_guardian_consent": {
             "type": "boolean"
           },
@@ -474,6 +478,10 @@
           },
           "last_name": {
             "maxLength": 100,
+            "type": "string"
+          },
+          "mobile": {
+            "maxLength": 20,
             "type": "string"
           },
           "parent_guardian_consent": {
@@ -2164,6 +2172,209 @@
         },
         "required": [
           "video_index"
+        ],
+        "type": "object"
+      },
+      "VolunteerEvent": {
+        "properties": {
+          "completed_on": {
+            "format": "date",
+            "nullable": true,
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "nullable": true,
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "readOnly": true,
+            "type": "integer"
+          },
+          "image": {
+            "format": "uri",
+            "maxLength": 700,
+            "pattern": "^(?:[a-z0-9.+-]*)://(?:[^\\s:@/]+(?::[^\\s:@/]*)?@)?(?:(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)(?:\\.(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}|\\[[0-9a-f:.]+\\]|([a-z¡-￿0-9](?:[a-z¡-￿0-9-]{0,61}[a-z¡-￿0-9])?(?:\\.(?!-)[a-z¡-￿0-9-]{1,63}(?<!-))*\\.(?!-)(?:[a-z¡-￿-]{2,63}|xn--[a-z0-9]{1,59})(?<!-)\\.?|localhost))(?::[0-9]{1,5})?(?:[/?#][^\\s]*)?\\z",
+            "type": "string"
+          },
+          "image_file": {
+            "format": "binary",
+            "nullable": true,
+            "type": "string"
+          },
+          "impact": {
+            "maxLength": 220,
+            "type": "string"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "location": {
+            "maxLength": 220,
+            "type": "string"
+          },
+          "organizer": {
+            "maxLength": 220,
+            "type": "string"
+          },
+          "seats": {
+            "format": "int64",
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "upcoming",
+              "completed"
+            ],
+            "type": "string"
+          },
+          "stream": {
+            "maxLength": 120,
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "time": {
+            "maxLength": 120,
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 220,
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "type": "object"
+      },
+      "VolunteerEventRegistration": {
+        "properties": {
+          "city": {
+            "maxLength": 80,
+            "type": "string"
+          },
+          "consent": {
+            "type": "boolean"
+          },
+          "country": {
+            "maxLength": 80,
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "email": {
+            "format": "email",
+            "maxLength": 254,
+            "type": "string"
+          },
+          "emergency_contact": {
+            "maxLength": 20,
+            "type": "string"
+          },
+          "full_name": {
+            "maxLength": 120,
+            "type": "string"
+          },
+          "id": {
+            "readOnly": true,
+            "type": "integer"
+          },
+          "mentee": {
+            "readOnly": true,
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "phone": {
+            "maxLength": 20,
+            "type": "string"
+          },
+          "postal_code": {
+            "maxLength": 20,
+            "type": "string"
+          },
+          "preferred_role": {
+            "maxLength": 120,
+            "type": "string"
+          },
+          "school_or_college": {
+            "maxLength": 200,
+            "type": "string"
+          },
+          "state": {
+            "maxLength": 80,
+            "type": "string"
+          },
+          "submitted_by_role": {
+            "enum": [
+              "mentee",
+              "mentor",
+              "admin"
+            ],
+            "readOnly": true,
+            "type": "string"
+          },
+          "team_name": {
+            "maxLength": 150,
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true,
+            "type": "string"
+          },
+          "volunteer_event": {
+            "type": "integer"
+          },
+          "volunteer_event_date": {
+            "format": "date",
+            "readOnly": true,
+            "type": "string"
+          },
+          "volunteer_event_time": {
+            "readOnly": true,
+            "type": "string"
+          },
+          "volunteer_event_title": {
+            "readOnly": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "full_name",
+          "email",
+          "phone",
+          "team_name",
+          "school_or_college",
+          "country",
+          "state",
+          "city",
+          "postal_code",
+          "emergency_contact",
+          "volunteer_event"
         ],
         "type": "object"
       }
@@ -8306,6 +8517,440 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TrainingVideoWatch"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/volunteer-event-registrations/": {
+      "get": {
+        "description": "",
+        "operationId": "listVolunteerEventRegistrationsGet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/VolunteerEventRegistration"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "post": {
+        "description": "",
+        "operationId": "createVolunteerEventRegistrationPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VolunteerEventRegistration"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/VolunteerEventRegistration"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/VolunteerEventRegistration"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VolunteerEventRegistration"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/volunteer-event-registrations/{id}/": {
+      "delete": {
+        "description": "",
+        "operationId": "destroyVolunteerEventRegistrationDelete",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this volunteer event registration.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "get": {
+        "description": "",
+        "operationId": "retrieveVolunteerEventRegistrationGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this volunteer event registration.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VolunteerEventRegistration"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "patch": {
+        "description": "",
+        "operationId": "partialUpdateVolunteerEventRegistrationPatch",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this volunteer event registration.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VolunteerEventRegistration"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/VolunteerEventRegistration"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/VolunteerEventRegistration"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VolunteerEventRegistration"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "put": {
+        "description": "",
+        "operationId": "updateVolunteerEventRegistrationPut",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this volunteer event registration.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VolunteerEventRegistration"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/VolunteerEventRegistration"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/VolunteerEventRegistration"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VolunteerEventRegistration"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/volunteer-events/": {
+      "get": {
+        "description": "",
+        "operationId": "listVolunteerEventsGet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/VolunteerEvent"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "post": {
+        "description": "",
+        "operationId": "createVolunteerEventPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VolunteerEvent"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/VolunteerEvent"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/VolunteerEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VolunteerEvent"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/volunteer-events/{id}/": {
+      "delete": {
+        "description": "",
+        "operationId": "destroyVolunteerEventDelete",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this volunteer event.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "get": {
+        "description": "",
+        "operationId": "retrieveVolunteerEventGet",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this volunteer event.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VolunteerEvent"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "patch": {
+        "description": "",
+        "operationId": "partialUpdateVolunteerEventPatch",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this volunteer event.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VolunteerEvent"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/VolunteerEvent"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/VolunteerEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VolunteerEvent"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      },
+      "put": {
+        "description": "",
+        "operationId": "updateVolunteerEventPut",
+        "parameters": [
+          {
+            "description": "A unique integer value identifying this volunteer event.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VolunteerEvent"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/VolunteerEvent"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/VolunteerEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VolunteerEvent"
                 }
               }
             },
