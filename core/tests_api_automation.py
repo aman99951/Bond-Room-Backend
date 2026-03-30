@@ -33,6 +33,8 @@ from core.models import (
     SessionIssueReport,
     TrainingModule,
     UserProfile,
+    VolunteerEvent,
+    VolunteerEventRegistration,
 )
 from core.schema import PUBLIC_PATHS
 
@@ -291,6 +293,39 @@ class ApiAutomationCoverageTests(APITestCase):
             description="Seed technical issue report",
             status="open",
         )
+        cls.volunteer_event = VolunteerEvent.objects.create(
+            title="Automation Volunteer Drive",
+            stream="Community Service",
+            image="https://example.com/automation-volunteer.jpg",
+            description="Automation seeded volunteer event.",
+            summary="Automation seeded summary.",
+            status=VolunteerEvent.STATUS_UPCOMING,
+            date=timezone.localdate() + timedelta(days=7),
+            time="10:00 AM - 12:00 PM",
+            location="Chennai",
+            organizer="Bond Room",
+            seats=30,
+            impact="Seed impact",
+            is_active=True,
+        )
+        cls.volunteer_registration = VolunteerEventRegistration.objects.create(
+            volunteer_event=cls.volunteer_event,
+            mentee=cls.mentee,
+            submitted_by_role="mentee",
+            full_name=f"{cls.mentee.first_name} {cls.mentee.last_name}".strip(),
+            email=cls.mentee.email,
+            phone=cls.mentee.parent_mobile or "+910000000003",
+            team_name="Automation Team",
+            school_or_college="Automation School",
+            country="India",
+            state="Tamil Nadu",
+            city="Chennai",
+            postal_code="600001",
+            preferred_role="Volunteer",
+            emergency_contact=cls.mentee.parent_mobile or "+910000000003",
+            notes="Seed volunteer registration",
+            consent=True,
+        )
 
     def setUp(self):
         self.client.defaults["HTTP_HOST"] = "testserver"
@@ -362,6 +397,8 @@ class ApiAutomationCoverageTests(APITestCase):
             "/api/sessions/{id}/terminate/": self.session.id,
             "/api/training-modules/{id}/": self.training_module.id,
             "/api/training-modules/{id}/watch-video/": self.training_module.id,
+            "/api/volunteer-events/{id}/": self.volunteer_event.id,
+            "/api/volunteer-event-registrations/{id}/": self.volunteer_registration.id,
         }
 
     def _resolve_path(self, schema_path):
@@ -371,6 +408,18 @@ class ApiAutomationCoverageTests(APITestCase):
             return f"/api/mentors/recommended/?mentee_request_id={self.mentee_request.id}"
         if schema_path == "/api/training-modules/quiz/":
             return f"/api/training-modules/quiz/?mentor_id={self.mentor.id}"
+        if schema_path.startswith("/api/volunteer-events/") and "{id}" in schema_path:
+            event_id = (
+                VolunteerEvent.objects.order_by("-id").values_list("id", flat=True).first()
+                or self.volunteer_event.id
+            )
+            return schema_path.replace("{id}", str(event_id))
+        if schema_path.startswith("/api/volunteer-event-registrations/") and "{id}" in schema_path:
+            registration_id = (
+                VolunteerEventRegistration.objects.order_by("-id").values_list("id", flat=True).first()
+                or self.volunteer_registration.id
+            )
+            return schema_path.replace("{id}", str(registration_id))
         endpoint_id = self._endpoint_id_map().get(schema_path)
         if endpoint_id is not None:
             return schema_path.replace("{id}", str(endpoint_id))
