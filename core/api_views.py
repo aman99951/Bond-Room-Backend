@@ -2,6 +2,8 @@ import json
 import os
 import time
 import hashlib
+import hmac
+import base64
 from datetime import timedelta
 from decimal import Decimal
 import re
@@ -52,6 +54,7 @@ from .models import (
     SessionIssueReport,
     SessionMeetingSignal,
     SessionRecording,
+    SiteSetting,
     TrainingModule,
     UserProfile,
     VolunteerEvent,
@@ -207,6 +210,22 @@ def parse_bool(value):
     if isinstance(value, str):
         return value.strip().lower() in {"1", "true", "yes", "on"}
     return False
+
+
+SITE_SETTING_DONATE_LINK_ENABLED_KEY = "donate_link_enabled"
+
+
+def get_site_setting_bool(key: str, default: bool = False) -> bool:
+    value = SiteSetting.objects.filter(key=key).values_list("value", flat=True).first()
+    if value is None:
+        return bool(default)
+    return parse_bool(value)
+
+
+def set_site_setting_bool(key: str, enabled: bool) -> bool:
+    normalized = "true" if bool(enabled) else "false"
+    SiteSetting.objects.update_or_create(key=key, defaults={"value": normalized})
+    return bool(enabled)
 
 
 def warning_policy_config():
@@ -732,6 +751,194 @@ class LocationCitiesView(APIView):
         if not canonical_state:
             return Response({"detail": "State not found."}, status=status.HTTP_404_NOT_FOUND)
         return Response({"state": canonical_state, "cities": cities})
+
+
+class PublicDonateLinkSettingView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def get(self, _request):
+        enabled = get_site_setting_bool(SITE_SETTING_DONATE_LINK_ENABLED_KEY, default=False)
+        return Response({"key": SITE_SETTING_DONATE_LINK_ENABLED_KEY, "enabled": enabled})
+
+
+class AdminDonateLinkSettingView(APIView):
+    permission_classes = [IsAuthenticatedWithAppRole]
+
+    def _update(self, request):
+        require_role(request, {ROLE_ADMIN})
+        if "enabled" not in request.data:
+            raise ValidationError({"enabled": "This field is required."})
+        enabled = parse_bool(request.data.get("enabled"))
+        updated = set_site_setting_bool(SITE_SETTING_DONATE_LINK_ENABLED_KEY, enabled)
+        return Response({"key": SITE_SETTING_DONATE_LINK_ENABLED_KEY, "enabled": updated})
+
+    def patch(self, request):
+        return self._update(request)
+
+    def post(self, request):
+        return self._update(request)
+
+
+def razorpay_creds():
+    key_id = str(os.environ.get("RAZORPAY_KEY_ID", "")).strip()
+    key_secret = str(os.environ.get("RAZORPAY_KEY_SECRET", "")).strip()
+    return key_id, key_secret
+
+
+def razorpay_mock_mode():
+    mode = str(os.environ.get("RAZORPAY_MOCK_MODE", "")).strip().lower()
+    return mode in {"1", "true", "yes", "on"}
+
+
+class RazorpayDonationOrderView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        amount_raw = request.data.get("amount")
+        name = str(request.data.get("name", "")).strip()
+        email = normalize_email(request.data.get("email"))
+        phone = str(request.data.get("phone", "")).strip()
+        message = str(request.data.get("message", "")).strip()
+
+        if amount_raw in {None, ""}:
+            raise ValidationError({"amount": "This field is required."})
+        if not name:
+            raise ValidationError({"name": "This field is required."})
+        if not email:
+            raise ValidationError({"email": "This field is required."})
+
+        try:
+            amount_value = Decimal(str(amount_raw))
+        except Exception:
+            raise ValidationError({"amount": "Enter a valid amount."})
+
+        if amount_value <= 0:
+            raise ValidationError({"amount": "Amount must be greater than zero."})
+        if amount_value > Decimal("1000000"):
+            raise ValidationError({"amount": "Amount exceeds allowed limit."})
+
+        amount_paise = int((amount_value * 100).quantize(Decimal("1")))
+        currency = "INR"
+
+        if razorpay_mock_mode():
+            fake_order_id = f"order_mock_{int(time.time())}"
+            key_id = str(os.environ.get("RAZORPAY_KEY_ID", "")).strip() or "rzp_test_mock_key"
+            return Response(
+                {
+                    "order_id": fake_order_id,
+                    "amount": amount_paise,
+                    "currency": currency,
+                    "key_id": key_id,
+                    "is_mock": True,
+                }
+            )
+
+        key_id, key_secret = razorpay_creds()
+        if not key_id or not key_secret:
+            return Response(
+                {"detail": "Razorpay credentials are not configured."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        receipt = f"bondroom_{int(time.time())}_{hashlib.md5(email.encode('utf-8')).hexdigest()[:8]}"
+        payload = {
+            "amount": amount_paise,
+            "currency": currency,
+            "receipt": receipt,
+            "notes": {
+                "name": name[:120],
+                "email": email[:190],
+                "phone": phone[:40],
+                "message": message[:350],
+                "source": "bond-room-donate-page",
+            },
+        }
+        basic_token = base64.b64encode(f"{key_id}:{key_secret}".encode("utf-8")).decode("ascii")
+        request_obj = urllib.request.Request(
+            "https://api.razorpay.com/v1/orders",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Authorization": f"Basic {basic_token}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request_obj, timeout=30) as resp:
+                order_payload = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            detail = ""
+            try:
+                detail = exc.read().decode("utf-8", errors="ignore")
+            except Exception:
+                detail = ""
+            return Response(
+                {"detail": "Razorpay order creation failed.", "error": detail[:320]},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        except Exception as exc:
+            return Response(
+                {"detail": f"Unable to create Razorpay order: {exc.__class__.__name__}"},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return Response(
+            {
+                "order_id": order_payload.get("id"),
+                "amount": order_payload.get("amount", amount_paise),
+                "currency": order_payload.get("currency", currency),
+                "key_id": key_id,
+                "is_mock": False,
+            }
+        )
+
+
+class RazorpayDonationVerifyView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        order_id = str(request.data.get("razorpay_order_id", "")).strip()
+        payment_id = str(request.data.get("razorpay_payment_id", "")).strip()
+        signature = str(request.data.get("razorpay_signature", "")).strip()
+
+        if not order_id or not payment_id or not signature:
+            raise ValidationError(
+                {
+                    "detail": (
+                        "razorpay_order_id, razorpay_payment_id, and "
+                        "razorpay_signature are required."
+                    )
+                }
+            )
+
+        if razorpay_mock_mode():
+            if signature != "mock_signature":
+                return Response(
+                    {"detail": "Invalid mock signature."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            return Response({"verified": True, "is_mock": True, "payment_id": payment_id, "order_id": order_id})
+
+        _, key_secret = razorpay_creds()
+        if not key_secret:
+            return Response(
+                {"detail": "Razorpay secret is not configured."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        payload = f"{order_id}|{payment_id}".encode("utf-8")
+        expected_signature = hmac.new(
+            key_secret.encode("utf-8"),
+            payload,
+            digestmod=hashlib.sha256,
+        ).hexdigest()
+        if not hmac.compare_digest(expected_signature, signature):
+            return Response({"detail": "Invalid payment signature."}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({"verified": True, "is_mock": False, "payment_id": payment_id, "order_id": order_id})
 
 
 class MobileLoginOtpVerifyView(GenericAPIView):

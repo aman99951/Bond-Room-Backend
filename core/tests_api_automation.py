@@ -49,6 +49,8 @@ POST_ONLY_PUBLIC_PATHS = {
     "/api/auth/register/admin/",
     "/api/auth/register/mentee/",
     "/api/auth/register/mentor/",
+    "/api/donations/razorpay/order/",
+    "/api/donations/razorpay/verify/",
     "/api/login/",
     "/api/token/refresh/",
 }
@@ -532,6 +534,22 @@ class ApiAutomationCoverageTests(APITestCase):
             return {"email": self.admin_user.email, "password": self.admin_password}
         if schema_path == "/api/token/refresh/":
             return {"refresh": self._post_login_and_get_refresh()}
+        if schema_path == "/api/site-settings/admin/donate-link/":
+            return {"enabled": True}
+        if schema_path == "/api/donations/razorpay/order/":
+            return {
+                "amount": "500",
+                "name": "Automation Donor",
+                "email": "donor.automation@example.com",
+                "phone": "+919999999999",
+                "message": "Automation donation",
+            }
+        if schema_path == "/api/donations/razorpay/verify/":
+            return {
+                "razorpay_order_id": "order_mock_automation",
+                "razorpay_payment_id": "pay_mock_automation",
+                "razorpay_signature": "mock_signature",
+            }
         if schema_path == "/api/auth/logout/":
             return {}
         if schema_path == "/api/mentors/{id}/admin-decision/":
@@ -625,12 +643,27 @@ class ApiAutomationCoverageTests(APITestCase):
             return "GET", "/api/locations/cities/", {}, {400}
         if schema_path == "/api/schema/":
             return "POST", "/api/schema/", {}, {405}
+        if schema_path == "/api/site-settings/public/donate-link/":
+            return "POST", "/api/site-settings/public/donate-link/", {}, {405}
         if schema_path == "/api/login/":
             return "POST", "/api/login/", {"email": self.admin_user.email, "password": self.admin_password}, {401}
         if schema_path == "/api/admin/login/":
             return "POST", "/api/admin/login/", {"email": self.admin_user.email, "password": "wrong-pass"}, {401}
         if schema_path == "/api/token/refresh/":
             return "POST", "/api/token/refresh/", {"refresh": "invalid-token"}, {401}
+        if schema_path == "/api/donations/razorpay/order/":
+            return "POST", "/api/donations/razorpay/order/", {"amount": 0}, {400}
+        if schema_path == "/api/donations/razorpay/verify/":
+            return (
+                "POST",
+                "/api/donations/razorpay/verify/",
+                {
+                    "razorpay_order_id": "order_mock_invalid",
+                    "razorpay_payment_id": "pay_mock_invalid",
+                    "razorpay_signature": "wrong_signature",
+                },
+                {400, 503},
+            )
         if schema_path == "/api/auth/register/admin/":
             return "POST", "/api/auth/register/admin/", {}, {400}
         if schema_path == "/api/auth/register/mentee/":
@@ -688,6 +721,12 @@ class ApiAutomationCoverageTests(APITestCase):
         if schema_path == "/api/sessions/{id}/realtime-transcript-chunk/":
             # May return 200 with empty transcript when STT provider is unavailable.
             return {200, 201}
+        if schema_path in {
+            "/api/donations/razorpay/order/",
+            "/api/donations/razorpay/verify/",
+        }:
+            # Local/test env may not provide Razorpay credentials.
+            return {200, 503}
         if schema_path in REGISTER_PATHS or schema_path in CREATED_PATHS:
             return {201}
         return {200}

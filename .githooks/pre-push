@@ -1,0 +1,12 @@
+#!/bin/sh
+# Backend pre-push quality gate.
+# Blocks push if tests or schema checks fail.
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/ci/pre_push_backend.ps1
+STATUS=$?
+if [ $STATUS -ne 0 ]; then
+  echo "Push blocked by backend pre-push checks."
+  exit $STATUS
+fi
+
+exit 0

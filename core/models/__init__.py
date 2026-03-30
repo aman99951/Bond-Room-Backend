@@ -30,6 +30,7 @@ from .matching import MatchRecommendation, MenteeRequest
 from .admin_account import AdminAccount
 from .user_profile import UserProfile
 from .volunteer import VolunteerEvent, VolunteerEventRegistration
+from .site_setting import SiteSetting
 
 __all__ = [
     'Mentee',
@@ -60,4 +61,5 @@ __all__ = [
     'UserProfile',
     'VolunteerEvent',
     'VolunteerEventRegistration',
+    'SiteSetting',
 ]

@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 
 from .api_views import (
     AdminRegisterView,
+    AdminDonateLinkSettingView,
     DonationTransactionViewSet,
     LocationCitiesView,
     LocationStatesView,
@@ -27,7 +28,10 @@ from .api_views import (
     ParentConsentSendOtpView,
     ParentConsentVerificationViewSet,
     ParentConsentVerifyOtpView,
+    PublicDonateLinkSettingView,
     PayoutTransactionViewSet,
+    RazorpayDonationOrderView,
+    RazorpayDonationVerifyView,
     SessionDispositionViewSet,
     SessionFeedbackViewSet,
     SessionIssueReportViewSet,
@@ -65,6 +69,10 @@ router.register(r"volunteer-event-registrations", VolunteerEventRegistrationView
 urlpatterns = [
     path("locations/states/", LocationStatesView.as_view(), name="location-states"),
     path("locations/cities/", LocationCitiesView.as_view(), name="location-cities"),
+    path("site-settings/public/donate-link/", PublicDonateLinkSettingView.as_view(), name="public-donate-link-setting"),
+    path("site-settings/admin/donate-link/", AdminDonateLinkSettingView.as_view(), name="admin-donate-link-setting"),
+    path("donations/razorpay/order/", RazorpayDonationOrderView.as_view(), name="donations-razorpay-order"),
+    path("donations/razorpay/verify/", RazorpayDonationVerifyView.as_view(), name="donations-razorpay-verify"),
     path("auth/mobile-login/verify-otp/", MobileLoginOtpVerifyView.as_view(), name="mobile-login-verify-otp"),
     path("auth/register/admin/", AdminRegisterView.as_view(), name="register-admin"),
     path("auth/register/mentee/", MenteeRegisterView.as_view(), name="register-mentee"),

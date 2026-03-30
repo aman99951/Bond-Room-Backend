@@ -28,6 +28,9 @@ PUBLIC_PATHS = {
     "/api/auth/mentor-contact/verify-otp/",
     "/api/mentors/",
     "/api/mentors/{id}/",
+    "/api/site-settings/public/donate-link/",
+    "/api/donations/razorpay/order/",
+    "/api/donations/razorpay/verify/",
     "/api/schema/",
     "/api/docs/",
 }
