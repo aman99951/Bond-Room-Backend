@@ -60,7 +60,7 @@ class VolunteerEventRegistration(models.Model):
     full_name = models.CharField(max_length=120)
     email = models.EmailField()
     phone = models.CharField(max_length=20)
-    team_name = models.CharField(max_length=150)
+    team_name = models.CharField(max_length=150, blank=True)
     school_or_college = models.CharField(max_length=200)
     country = models.CharField(max_length=80)
     state = models.CharField(max_length=80)
