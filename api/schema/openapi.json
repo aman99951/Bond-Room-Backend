@@ -328,8 +328,16 @@
             "nullable": true,
             "type": "string"
           },
+          "city": {
+            "maxLength": 80,
+            "type": "string"
+          },
           "city_state": {
             "maxLength": 150,
+            "type": "string"
+          },
+          "country": {
+            "maxLength": 80,
             "type": "string"
           },
           "created_at": {
@@ -384,8 +392,20 @@
             "maxLength": 20,
             "type": "string"
           },
+          "postal_code": {
+            "maxLength": 20,
+            "type": "string"
+          },
           "record_consent": {
             "type": "boolean"
+          },
+          "school_or_college": {
+            "maxLength": 200,
+            "type": "string"
+          },
+          "state": {
+            "maxLength": 80,
+            "type": "string"
           },
           "timezone": {
             "maxLength": 50,
@@ -445,8 +465,16 @@
       },
       "MenteeRegister": {
         "properties": {
+          "city": {
+            "maxLength": 80,
+            "type": "string"
+          },
           "city_state": {
             "maxLength": 150,
+            "type": "string"
+          },
+          "country": {
+            "maxLength": 80,
             "type": "string"
           },
           "dob": {
@@ -496,9 +524,21 @@
             "type": "string",
             "writeOnly": true
           },
+          "postal_code": {
+            "maxLength": 20,
+            "type": "string"
+          },
           "record_consent": {
             "default": false,
             "type": "boolean"
+          },
+          "school_or_college": {
+            "maxLength": 200,
+            "type": "string"
+          },
+          "state": {
+            "maxLength": 80,
+            "type": "string"
           },
           "timezone": {
             "maxLength": 50,
@@ -2301,6 +2341,7 @@
             "type": "integer"
           },
           "mentee": {
+            "nullable": true,
             "readOnly": true,
             "type": "string"
           },
@@ -2331,7 +2372,8 @@
             "enum": [
               "mentee",
               "mentor",
-              "admin"
+              "admin",
+              "guest"
             ],
             "readOnly": true,
             "type": "string"
