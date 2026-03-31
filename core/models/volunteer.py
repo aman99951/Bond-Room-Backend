@@ -41,6 +41,7 @@ class VolunteerEventRegistration(models.Model):
         ("mentee", "Mentee"),
         ("mentor", "Mentor"),
         ("admin", "Admin"),
+        ("guest", "Guest"),
     ]
 
     volunteer_event = models.ForeignKey(
@@ -52,6 +53,8 @@ class VolunteerEventRegistration(models.Model):
         Mentee,
         on_delete=models.CASCADE,
         related_name="volunteer_registrations",
+        null=True,
+        blank=True,
     )
     submitted_by_role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="mentee")
     full_name = models.CharField(max_length=120)

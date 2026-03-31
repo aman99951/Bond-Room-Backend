@@ -1705,7 +1705,7 @@ class MatchRecommendationViewSet(viewsets.ReadOnlyModelViewSet):
 class VolunteerEventViewSet(viewsets.ModelViewSet):
     queryset = VolunteerEvent.objects.all()
     serializer_class = VolunteerEventSerializer
-    permission_classes = [IsAuthenticatedWithAppRole]
+    permission_classes = [AllowAny]
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -1739,6 +1739,11 @@ class VolunteerEventRegistrationViewSet(viewsets.ModelViewSet):
     serializer_class = VolunteerEventRegistrationSerializer
     permission_classes = [IsAuthenticatedWithAppRole]
 
+    def get_permissions(self):
+        if self.action == "create":
+            return [AllowAny()]
+        return super().get_permissions()
+
     def get_queryset(self):
         queryset = super().get_queryset()
         role = user_role(self.request.user)
@@ -1760,15 +1765,43 @@ class VolunteerEventRegistrationViewSet(viewsets.ModelViewSet):
         return queryset.none()
 
     def perform_create(self, serializer):
-        require_role(self.request, {ROLE_MENTEE})
-        my_id = current_mentee_id(self.request)
-        if not my_id:
-            raise PermissionDenied("Mentee profile not found for this user.")
+        role = user_role(self.request.user)
+        save_kwargs = {"mentee": None, "submitted_by_role": "guest"}
+        volunteer_event = serializer.validated_data.get("volunteer_event")
+        email_value = str(serializer.validated_data.get("email") or "").strip().lower()
+        if role == ROLE_MENTEE:
+            my_id = current_mentee_id(self.request)
+            if not my_id:
+                raise PermissionDenied("Mentee profile not found for this user.")
+            if volunteer_event and VolunteerEventRegistration.objects.filter(
+                volunteer_event_id=volunteer_event.id,
+                mentee_id=my_id,
+            ).exists():
+                raise ValidationError({"detail": "You are already registered for this event."})
+            save_kwargs = {"mentee_id": my_id, "submitted_by_role": ROLE_MENTEE}
+        elif role in {ROLE_ADMIN, ROLE_MENTOR}:
+            save_kwargs = {"mentee": None, "submitted_by_role": role}
+        elif volunteer_event and email_value:
+            if VolunteerEventRegistration.objects.filter(
+                volunteer_event_id=volunteer_event.id,
+                email__iexact=email_value,
+            ).exists():
+                raise ValidationError({"detail": "You are already registered for this event."})
         try:
-            registration = serializer.save(mentee_id=my_id, submitted_by_role=ROLE_MENTEE)
+            registration = serializer.save(**save_kwargs)
             send_volunteer_registration_confirmation_email(registration)
-        except IntegrityError:
-            raise ValidationError({"detail": "You are already registered for this event."})
+        except IntegrityError as exc:
+            detail = str(exc).lower()
+            if (
+                "uniq_volunteer_event_registration_per_mentee" in detail
+                or ("unique" in detail and "volunteer_event" in detail and "mentee" in detail)
+            ):
+                raise ValidationError({"detail": "You are already registered for this event."})
+            if "not null" in detail and "mentee" in detail:
+                raise ValidationError(
+                    {"detail": "Guest registration setup is pending server migration. Please contact support."}
+                )
+            raise ValidationError({"detail": "Unable to submit registration right now. Please try again."})
 
     def update(self, request, *args, **kwargs):
         require_role(request, {ROLE_ADMIN})
