@@ -653,6 +653,9 @@ class MenteeRegisterSerializer(serializers.Serializer):
     parent_guardian_consent = serializers.BooleanField(required=False, default=False)
     parent_mobile = serializers.CharField(max_length=20, required=False, allow_blank=True)
     record_consent = serializers.BooleanField(required=False, default=False)
+    volunteer_access = serializers.BooleanField(required=False, default=False)
+    signup_source = serializers.ChoiceField(choices=Mentee.SIGNUP_SOURCE_CHOICES, required=False, default=Mentee.SIGNUP_SOURCE_REGULAR)
+    mentee_program_enabled = serializers.BooleanField(required=False, default=True)
     password = serializers.CharField(required=False, allow_blank=True, write_only=True)
 
     def validate_dob(self, value):

@@ -69,6 +69,11 @@ POST_ONLY_AUTHENTICATED_PATHS = {
     "/api/training-modules/quiz/abandon/",
 }
 
+PUBLIC_METHOD_OVERRIDES = {
+    "/api/volunteer-events/": {"GET"},
+    "/api/volunteer-events/{id}/": {"GET"},
+}
+
 REGISTER_PATHS = {
     "/api/auth/register/admin/",
     "/api/auth/register/mentee/",
@@ -440,6 +445,11 @@ class ApiAutomationCoverageTests(APITestCase):
             return "PUT"
         return "DELETE"
 
+    def _is_public_operation(self, schema_path, method):
+        if schema_path in PUBLIC_PATHS:
+            return True
+        return method in PUBLIC_METHOD_OVERRIDES.get(schema_path, set())
+
     def _post_login_and_get_refresh(self):
         if self._refresh_token:
             return self._refresh_token
@@ -751,7 +761,7 @@ class ApiAutomationCoverageTests(APITestCase):
             path = self._resolve_path(schema_path)
             payload = self._positive_payload(schema_path)
 
-            if schema_path in PUBLIC_PATHS:
+            if self._is_public_operation(schema_path, method):
                 self._clear_authentication()
             else:
                 self._authenticate_as_admin()
@@ -781,15 +791,25 @@ class ApiAutomationCoverageTests(APITestCase):
             methods = {method.upper() for method in operations.keys() if method in {"get", "post", "put", "patch", "delete"}}
             method = self._pick_positive_method(schema_path, methods)
 
-            if schema_path in PUBLIC_PATHS:
+            if self._is_public_operation(schema_path, method):
                 self._clear_authentication()
-                neg_method, neg_path, payload, expected_statuses = self._negative_public_case(schema_path)
-                response = self._request(neg_method, neg_path, payload, schema_path)
-                self.assertIn(
-                    response.status_code,
-                    expected_statuses,
-                    f"Negative public case failed for {schema_path}: {response.status_code}, {getattr(response, 'data', None)}",
-                )
+                if schema_path in PUBLIC_PATHS:
+                    neg_method, neg_path, payload, expected_statuses = self._negative_public_case(schema_path)
+                    response = self._request(neg_method, neg_path, payload, schema_path)
+                    self.assertIn(
+                        response.status_code,
+                        expected_statuses,
+                        f"Negative public case failed for {schema_path}: {response.status_code}, {getattr(response, 'data', None)}",
+                    )
+                else:
+                    path = self._resolve_path(schema_path)
+                    payload = self._positive_payload(schema_path) if method in {"POST", "PUT", "PATCH"} else None
+                    response = self._request(method, path, payload, schema_path)
+                    self.assertNotIn(
+                        response.status_code,
+                        {401, 403},
+                        f"Public operation unexpectedly rejected unauthenticated access: {schema_path} ({method}) -> {response.status_code}",
+                    )
             else:
                 self._clear_authentication()
                 path = self._resolve_path(schema_path)
@@ -807,10 +827,9 @@ class ApiAutomationCoverageTests(APITestCase):
     def test_all_protected_operations_reject_unauthenticated_requests(self):
         paths = self._schema_paths()
         for schema_path, operations in sorted(paths.items()):
-            if schema_path in PUBLIC_PATHS:
-                continue
-
             for method in sorted([m.upper() for m in operations.keys() if m in {"get", "post", "put", "patch", "delete"}]):
+                if self._is_public_operation(schema_path, method):
+                    continue
                 self._clear_authentication()
                 path = self._resolve_path(schema_path)
                 payload = self._positive_payload(schema_path) if method in {"POST", "PUT", "PATCH"} else None

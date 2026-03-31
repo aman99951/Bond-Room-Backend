@@ -2,6 +2,13 @@ from django.db import models
 
 
 class Mentee(models.Model):
+    SIGNUP_SOURCE_REGULAR = "regular"
+    SIGNUP_SOURCE_EVENT_FLOW = "event_flow"
+    SIGNUP_SOURCE_CHOICES = [
+        (SIGNUP_SOURCE_REGULAR, "Regular"),
+        (SIGNUP_SOURCE_EVENT_FLOW, "Event Flow"),
+    ]
+
     GRADE_CHOICES = [
         ('10th Grade', '10th Grade'),
         ('11th Grade', '11th Grade'),
@@ -29,6 +36,9 @@ class Mentee(models.Model):
     parent_guardian_consent = models.BooleanField(default=False)
     parent_mobile = models.CharField(max_length=20, blank=True)
     record_consent = models.BooleanField(default=False)
+    volunteer_access = models.BooleanField(default=False)
+    signup_source = models.CharField(max_length=20, choices=SIGNUP_SOURCE_CHOICES, default=SIGNUP_SOURCE_REGULAR)
+    mentee_program_enabled = models.BooleanField(default=True)
     avatar = models.FileField(upload_to='mentee/avatar/', null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)

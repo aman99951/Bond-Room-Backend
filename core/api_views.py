@@ -1707,6 +1707,11 @@ class VolunteerEventViewSet(viewsets.ModelViewSet):
     serializer_class = VolunteerEventSerializer
     permission_classes = [IsAuthenticatedWithAppRole]
 
+    def get_permissions(self):
+        if self.action in {"list", "retrieve"}:
+            return [AllowAny()]
+        return super().get_permissions()
+
     def get_queryset(self):
         queryset = super().get_queryset()
         role = user_role(self.request.user)
