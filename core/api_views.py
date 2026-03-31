@@ -1705,7 +1705,7 @@ class MatchRecommendationViewSet(viewsets.ReadOnlyModelViewSet):
 class VolunteerEventViewSet(viewsets.ModelViewSet):
     queryset = VolunteerEvent.objects.all()
     serializer_class = VolunteerEventSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticatedWithAppRole]
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -1738,11 +1738,6 @@ class VolunteerEventRegistrationViewSet(viewsets.ModelViewSet):
     queryset = VolunteerEventRegistration.objects.all().select_related("volunteer_event", "mentee")
     serializer_class = VolunteerEventRegistrationSerializer
     permission_classes = [IsAuthenticatedWithAppRole]
-
-    def get_permissions(self):
-        if self.action == "create":
-            return [AllowAny()]
-        return super().get_permissions()
 
     def get_queryset(self):
         queryset = super().get_queryset()
