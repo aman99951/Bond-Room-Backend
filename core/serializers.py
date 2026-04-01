@@ -1,6 +1,7 @@
 from datetime import date, timedelta
 from hashlib import sha256
 from random import randint
+import json
 import re
 
 from django.conf import settings
@@ -600,9 +601,35 @@ class MenteeRequestSerializer(serializers.ModelSerializer):
 
 
 class VolunteerEventSerializer(serializers.ModelSerializer):
+    available_roles = serializers.ListField(
+        child=serializers.CharField(max_length=120),
+        required=False,
+        allow_empty=True,
+    )
+
     class Meta:
         model = VolunteerEvent
         fields = "__all__"
+
+    def validate_available_roles(self, value):
+        if value in (None, ""):
+            return []
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except json.JSONDecodeError as exc:
+                raise serializers.ValidationError("Invalid roles format.") from exc
+        if not isinstance(value, list):
+            raise serializers.ValidationError("Roles must be a list.")
+        cleaned = []
+        seen = set()
+        for item in value:
+            role = str(item or "").strip()
+            if not role or role in seen:
+                continue
+            seen.add(role)
+            cleaned.append(role)
+        return cleaned
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -628,8 +655,13 @@ class VolunteerEventRegistrationSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         attrs = super().validate(attrs)
         event = attrs.get("volunteer_event")
+        preferred_role = str(attrs.get("preferred_role") or "").strip()
         if event and event.status != VolunteerEvent.STATUS_UPCOMING:
             raise serializers.ValidationError({"volunteer_event": "Registration is allowed only for upcoming events."})
+        if event and preferred_role:
+            available_roles = event.available_roles if isinstance(event.available_roles, list) else []
+            if available_roles and preferred_role not in available_roles:
+                raise serializers.ValidationError({"preferred_role": "Selected role is not available for this event."})
         if attrs.get("consent") is not True:
             raise serializers.ValidationError({"consent": "Consent is required."})
         return attrs

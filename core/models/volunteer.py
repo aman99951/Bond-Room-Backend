@@ -25,6 +25,7 @@ class VolunteerEvent(models.Model):
     organizer = models.CharField(max_length=220, blank=True)
     seats = models.PositiveIntegerField(default=0)
     impact = models.CharField(max_length=220, blank=True)
+    available_roles = models.JSONField(default=list, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
