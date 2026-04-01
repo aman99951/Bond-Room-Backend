@@ -2246,6 +2246,12 @@
       },
       "VolunteerEvent": {
         "properties": {
+          "available_roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "completed_on": {
             "format": "date",
             "nullable": true,
