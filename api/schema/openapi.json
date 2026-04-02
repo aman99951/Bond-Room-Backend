@@ -8761,16 +8761,60 @@
       "get": {
         "description": "",
         "operationId": "listVolunteerEventRegistrationsGet",
-        "parameters": [],
+        "parameters": [
+          {
+            "description": "A page number within the paginated result set.",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Number of results to return per page.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/VolunteerEventRegistration"
+                  "properties": {
+                    "count": {
+                      "example": 123,
+                      "type": "integer"
+                    },
+                    "next": {
+                      "example": "http://api.example.org/accounts/?page=4",
+                      "format": "uri",
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "previous": {
+                      "example": "http://api.example.org/accounts/?page=2",
+                      "format": "uri",
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "results": {
+                      "items": {
+                        "$ref": "#/components/schemas/VolunteerEventRegistration"
+                      },
+                      "type": "array"
+                    }
                   },
-                  "type": "array"
+                  "required": [
+                    "count",
+                    "results"
+                  ],
+                  "type": "object"
                 }
               }
             },
@@ -8978,16 +9022,60 @@
       "get": {
         "description": "",
         "operationId": "listVolunteerEventsGet",
-        "parameters": [],
+        "parameters": [
+          {
+            "description": "A page number within the paginated result set.",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Number of results to return per page.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/VolunteerEvent"
+                  "properties": {
+                    "count": {
+                      "example": 123,
+                      "type": "integer"
+                    },
+                    "next": {
+                      "example": "http://api.example.org/accounts/?page=4",
+                      "format": "uri",
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "previous": {
+                      "example": "http://api.example.org/accounts/?page=2",
+                      "format": "uri",
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "results": {
+                      "items": {
+                        "$ref": "#/components/schemas/VolunteerEvent"
+                      },
+                      "type": "array"
+                    }
                   },
-                  "type": "array"
+                  "required": [
+                    "count",
+                    "results"
+                  ],
+                  "type": "object"
                 }
               }
             },
