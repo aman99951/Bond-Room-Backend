@@ -22,6 +22,7 @@ from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.generics import GenericAPIView
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -139,6 +140,11 @@ except Exception:
 
 TRAINING_QUIZ_PASS_MARK = 7
 User = get_user_model()
+
+class SixPerPagePagination(PageNumberPagination):
+    page_size = 6
+    page_size_query_param = "page_size"
+    max_page_size = 24
 
 
 def current_mentee_id(request):
@@ -1706,6 +1712,7 @@ class VolunteerEventViewSet(viewsets.ModelViewSet):
     queryset = VolunteerEvent.objects.all()
     serializer_class = VolunteerEventSerializer
     permission_classes = [IsAuthenticatedWithAppRole]
+    pagination_class = SixPerPagePagination
 
     def get_permissions(self):
         if self.action in {"list", "retrieve"}:
@@ -1743,6 +1750,7 @@ class VolunteerEventRegistrationViewSet(viewsets.ModelViewSet):
     queryset = VolunteerEventRegistration.objects.all().select_related("volunteer_event", "mentee")
     serializer_class = VolunteerEventRegistrationSerializer
     permission_classes = [IsAuthenticatedWithAppRole]
+    pagination_class = SixPerPagePagination
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -1761,6 +1769,23 @@ class VolunteerEventRegistrationViewSet(viewsets.ModelViewSet):
             event_id = self.request.query_params.get("volunteer_event_id")
             if event_id:
                 queryset = queryset.filter(volunteer_event_id=event_id)
+            status_value = str(self.request.query_params.get("status", "")).strip().lower()
+            today = timezone.localdate()
+            if status_value == VolunteerEvent.STATUS_COMPLETED:
+                queryset = queryset.filter(volunteer_event__date__lt=today)
+            elif status_value == VolunteerEvent.STATUS_UPCOMING:
+                queryset = queryset.filter(volunteer_event__date__gte=today)
+
+            search_value = str(self.request.query_params.get("search", "")).strip()
+            if search_value:
+                queryset = queryset.filter(
+                    Q(volunteer_event__title__icontains=search_value)
+                    | Q(team_name__icontains=search_value)
+                    | Q(city__icontains=search_value)
+                    | Q(state__icontains=search_value)
+                    | Q(preferred_role__icontains=search_value)
+                )
+
             return queryset
         return queryset.none()
 
