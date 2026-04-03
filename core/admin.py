@@ -372,6 +372,7 @@ class MentorIdentityVerificationAdmin(admin.ModelAdmin):
         'address_proof_document_size',
         'aadhaar_front_size',
         'aadhaar_back_size',
+        'professional_certificate_document_size',
         'submitted_at',
         'reviewed_at',
         'updated_at',
@@ -428,6 +429,15 @@ class MentorIdentityVerificationAdmin(admin.ModelAdmin):
                 )
             },
         ),
+        (
+            'Professional Certificate',
+            {
+                'fields': (
+                    'professional_certificate_document',
+                    'professional_certificate_document_size',
+                )
+            },
+        ),
     )
 
     @staticmethod
@@ -469,6 +479,10 @@ class MentorIdentityVerificationAdmin(admin.ModelAdmin):
     @admin.display(description='Aadhaar Back File Size')
     def aadhaar_back_size(self, obj):
         return self._file_size_label(getattr(obj, 'aadhaar_back', None))
+
+    @admin.display(description='Professional Certificate File Size')
+    def professional_certificate_document_size(self, obj):
+        return self._file_size_label(getattr(obj, 'professional_certificate_document', None))
 
 
 @admin.register(MentorContactVerification)

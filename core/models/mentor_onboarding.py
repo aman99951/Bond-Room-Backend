@@ -50,6 +50,11 @@ class MentorIdentityVerification(models.Model):
         null=True,
         blank=True,
     )
+    professional_certificate_document = models.FileField(
+        upload_to="mentor_verification/professional_certificate/",
+        null=True,
+        blank=True,
+    )
     document_review_status = models.JSONField(default=dict, blank=True)
     document_review_comments = models.JSONField(default=dict, blank=True)
     additional_notes = models.TextField(blank=True)

@@ -771,15 +771,16 @@ class RegistrationAgeValidationTests(APITestCase):
         self.assertEqual(response.status_code, 400, response.data)
         self.assertIn("dob", response.data)
 
-    def test_mentor_registration_rejects_age_outside_45_to_60(self):
+    def test_mentor_registration_rejects_age_outside_25_to_65(self):
         payload = {
             "first_name": "Early",
             "last_name": "Mentor",
             "email": "early.mentor@test.com",
             "mobile": "+911234500999",
-            "dob": self.years_ago(30).isoformat(),
+            "dob": self.years_ago(24).isoformat(),
             "gender": "Male",
             "city_state": "Chennai",
+            "care_areas": ["Motivation"],
         }
         response = self.client.post("/api/auth/register/mentor/", payload, format="json")
         self.assertEqual(response.status_code, 400, response.data)
@@ -829,6 +830,7 @@ class RegistrationAgeValidationTests(APITestCase):
             "dob": self.years_ago(45).isoformat(),
             "gender": "Male",
             "city_state": "Chennai",
+            "care_areas": ["Motivation"],
         }
         response = self.client.post("/api/auth/register/mentor/", payload, format="json")
         self.assertEqual(response.status_code, 201, response.data)
@@ -851,6 +853,7 @@ class RegistrationAgeValidationTests(APITestCase):
             "dob": self.years_ago(46).isoformat(),
             "gender": "Male",
             "city_state": "Chennai",
+            "care_areas": ["Motivation"],
         }
         response = self.client.post("/api/auth/register/mentor/", payload, format="json")
         self.assertEqual(response.status_code, 400, response.data)
@@ -923,6 +926,7 @@ class RegistrationAgeValidationTests(APITestCase):
             "dob": self.years_ago(46).isoformat(),
             "gender": "Male",
             "city_state": "Chennai",
+            "care_areas": ["Motivation"],
         }
         response = self.client.post("/api/auth/register/mentor/", payload, format="json")
         self.assertEqual(response.status_code, 400, response.data)
@@ -986,6 +990,7 @@ class RegistrationAgeValidationTests(APITestCase):
             "dob": self.years_ago(45).isoformat(),
             "gender": "Male",
             "city_state": "Chennai",
+            "care_areas": ["Motivation"],
         }
         create_response = self.client.post("/api/auth/register/mentor/", create_payload, format="json")
         self.assertEqual(create_response.status_code, 201, create_response.data)
@@ -1015,6 +1020,7 @@ class RegistrationAgeValidationTests(APITestCase):
             "dob": self.years_ago(45).isoformat(),
             "gender": "Male",
             "city_state": "Chennai",
+            "care_areas": ["Motivation"],
         }
         response = self.client.post("/api/auth/register/mentor/", payload, format="json")
         self.assertEqual(response.status_code, 201, response.data)
@@ -1033,6 +1039,7 @@ class RegistrationAgeValidationTests(APITestCase):
             "dob": self.years_ago(45).isoformat(),
             "gender": "Male",
             "city_state": "Chennai",
+            "care_areas": ["Motivation"],
         }
         create_response = self.client.post("/api/auth/register/mentor/", create_payload, format="json")
         self.assertEqual(create_response.status_code, 201, create_response.data)

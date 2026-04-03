@@ -194,6 +194,7 @@ IDENTITY_REVIEW_DOCUMENT_KEYS = (
     "id_back",
     "address_front",
     "address_back",
+    "professional_certificate",
 )
 IDENTITY_REVIEW_DECISIONS = {"pending", "approved", "rejected"}
 
@@ -422,6 +423,10 @@ class MentorIdentityVerificationSerializer(serializers.ModelSerializer):
             "address_proof_document",
             getattr(instance, "address_proof_document", None),
         )
+        professional_certificate_document = attrs.get(
+            "professional_certificate_document",
+            getattr(instance, "professional_certificate_document", None),
+        )
         review_status = normalize_document_review_status(
             attrs.get(
                 "document_review_status",
@@ -449,6 +454,8 @@ class MentorIdentityVerificationSerializer(serializers.ModelSerializer):
                 errors["address_proof_number"] = "Address proof number is required."
             if not address_proof_document:
                 errors["address_proof_document"] = "Address proof document is required."
+            if not professional_certificate_document:
+                errors["professional_certificate_document"] = "Professional certificate document is required."
 
         if id_proof_type and id_proof_number:
             try:
@@ -688,6 +695,7 @@ class MenteeRegisterSerializer(serializers.Serializer):
     volunteer_access = serializers.BooleanField(required=False, default=False)
     signup_source = serializers.ChoiceField(choices=Mentee.SIGNUP_SOURCE_CHOICES, required=False, default=Mentee.SIGNUP_SOURCE_REGULAR)
     mentee_program_enabled = serializers.BooleanField(required=False, default=True)
+    avatar = serializers.ImageField(required=False, allow_null=True)
     password = serializers.CharField(required=False, allow_blank=True, write_only=True)
 
     def validate_dob(self, value):
@@ -758,8 +766,13 @@ class MentorRegisterSerializer(serializers.Serializer):
     last_name = serializers.CharField(max_length=100)
     email = serializers.EmailField()
     mobile = serializers.CharField(max_length=20)
+    country_code = serializers.CharField(max_length=8, required=False, allow_blank=True)
     dob = serializers.DateField()
     gender = serializers.ChoiceField(choices=Mentor.GENDER_CHOICES)
+    country = serializers.CharField(max_length=80, required=False, allow_blank=True)
+    state = serializers.CharField(max_length=80, required=False, allow_blank=True)
+    city = serializers.CharField(max_length=80, required=False, allow_blank=True)
+    postal_code = serializers.CharField(max_length=20, required=False, allow_blank=True)
     city_state = serializers.CharField(max_length=150)
     languages = serializers.ListField(child=serializers.CharField(), required=False)
     care_areas = serializers.ListField(child=serializers.CharField(), required=False)
@@ -769,13 +782,14 @@ class MentorRegisterSerializer(serializers.Serializer):
     qualification = serializers.CharField(max_length=150, required=False, allow_blank=True)
     bio = serializers.CharField(required=False, allow_blank=True)
     avatar = serializers.URLField(required=False, allow_blank=True)
+    profile_image = serializers.ImageField(required=False, allow_null=True, write_only=True)
     consent = serializers.BooleanField(required=False, default=False)
     email_verified = serializers.BooleanField(required=False, default=False)
     phone_verified = serializers.BooleanField(required=False, default=False)
     password = serializers.CharField(required=False, allow_blank=True, write_only=True)
 
     def validate_dob(self, value):
-        return _validate_age_range(value, min_age=45, max_age=60, role_label="Mentor")
+        return _validate_age_range(value, min_age=25, max_age=65, role_label="Mentor")
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
@@ -787,8 +801,45 @@ class MentorRegisterSerializer(serializers.Serializer):
 
         email = str(attrs.get("email", "")).strip().lower()
         mobile = str(attrs.get("mobile", "")).strip()
+        country_code = str(attrs.get("country_code", "")).strip()
+        country = str(attrs.get("country", "")).strip()
+        state = str(attrs.get("state", "")).strip()
+        city = str(attrs.get("city", "")).strip()
+        postal_code = str(attrs.get("postal_code", "")).strip()
+        city_state = str(attrs.get("city_state", "")).strip()
         attrs["email"] = email
         attrs["mobile"] = mobile
+        attrs["country_code"] = country_code
+        attrs["country"] = country
+        attrs["state"] = state
+        attrs["city"] = city
+        attrs["postal_code"] = postal_code
+        attrs["city_state"] = city_state
+        bio = str(attrs.get("bio", "")).strip()
+        bio_word_count = len([chunk for chunk in bio.split() if chunk])
+        if bio_word_count > 1000:
+            raise serializers.ValidationError({"bio": "Brief bio must be 1000 words or fewer."})
+        raw_care_areas = attrs.get("care_areas", [])
+        if raw_care_areas in (None, ""):
+            raw_care_areas = []
+        if not isinstance(raw_care_areas, list):
+            raise serializers.ValidationError({"care_areas": "Care areas must be a list."})
+
+        cleaned_care_areas = []
+        seen_care_areas = set()
+        for item in raw_care_areas:
+            value = str(item or "").strip()
+            if not value:
+                continue
+            key = value.lower()
+            if key in seen_care_areas:
+                continue
+            seen_care_areas.add(key)
+            cleaned_care_areas.append(value)
+
+        if not cleaned_care_areas:
+            raise serializers.ValidationError({"care_areas": "Select at least one care area for mentor matching."})
+        attrs["care_areas"] = cleaned_care_areas
 
         errors = {}
 
@@ -817,10 +868,21 @@ class MentorRegisterSerializer(serializers.Serializer):
         password = validated_data.pop("password", "")
         email_verified = validated_data.pop("email_verified", False)
         phone_verified = validated_data.pop("phone_verified", False)
+        profile_image = validated_data.pop("profile_image", None)
         email = validated_data["email"]
         first_name = validated_data.get("first_name", "").strip()
         last_name = validated_data.get("last_name", "").strip()
         mentor = Mentor.objects.filter(id=mentor_id).first() if mentor_id else None
+
+        def save_profile_image(target_mentor, image_file):
+            if not image_file:
+                return
+            profile, _ = MentorProfile.objects.get_or_create(
+                mentor=target_mentor,
+                defaults={"public_id": f"BR-{target_mentor.id:04d}"},
+            )
+            profile.profile_photo = image_file
+            profile.save(update_fields=["profile_photo", "updated_at"])
 
         if mentor:
             user = User.objects.filter(email__iexact=mentor.email).first()
@@ -843,6 +905,7 @@ class MentorRegisterSerializer(serializers.Serializer):
             for field, value in validated_data.items():
                 setattr(mentor, field, value)
             mentor.save()
+            save_profile_image(mentor, profile_image)
             sync_mentor_contact_verification(
                 mentor,
                 email_verified=email_verified,
@@ -864,6 +927,7 @@ class MentorRegisterSerializer(serializers.Serializer):
         user.save()
         UserProfile.objects.update_or_create(user=user, defaults={"role": "mentor"})
         mentor = Mentor.objects.create(**validated_data)
+        save_profile_image(mentor, profile_image)
         sync_mentor_contact_verification(
             mentor,
             email_verified=email_verified,

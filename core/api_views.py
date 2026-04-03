@@ -22,6 +22,7 @@ from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.generics import GenericAPIView
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -145,6 +146,12 @@ class SixPerPagePagination(PageNumberPagination):
     page_size = 6
     page_size_query_param = "page_size"
     max_page_size = 24
+
+
+class SessionRecordsPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = "page_size"
+    max_page_size = 50
 
 
 def current_mentee_id(request):
@@ -699,6 +706,7 @@ def serialize_quiz_attempt_for_client(attempt, *, include_questions=False):
 class MenteeRegisterView(GenericAPIView):
     permission_classes = [AllowAny]
     serializer_class = MenteeRegisterSerializer
+    parser_classes = [JSONParser, FormParser, MultiPartParser]
 
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
@@ -711,6 +719,7 @@ class MenteeRegisterView(GenericAPIView):
 class MentorRegisterView(GenericAPIView):
     permission_classes = [AllowAny]
     serializer_class = MentorRegisterSerializer
+    parser_classes = [JSONParser, FormParser, MultiPartParser]
 
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
@@ -1957,13 +1966,39 @@ class SessionViewSet(viewsets.ModelViewSet):
         mentee_id = self.request.query_params.get("mentee_id")
         mentor_id = self.request.query_params.get("mentor_id")
         status_value = self.request.query_params.get("status")
+        search_value = str(self.request.query_params.get("search", "")).strip()
         if mentee_id:
             queryset = queryset.filter(mentee_id=mentee_id)
         if mentor_id:
             queryset = queryset.filter(mentor_id=mentor_id)
         if status_value:
             queryset = queryset.filter(status=status_value)
+        if search_value:
+            search_filters = (
+                Q(mentor__first_name__icontains=search_value)
+                | Q(mentor__last_name__icontains=search_value)
+                | Q(mentee__first_name__icontains=search_value)
+                | Q(mentee__last_name__icontains=search_value)
+                | Q(topic_tags__icontains=search_value)
+            )
+            if search_value.isdigit():
+                search_filters = search_filters | Q(id=int(search_value))
+            queryset = queryset.filter(search_filters)
         return queryset
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        should_paginate = (
+            request.query_params.get("page") is not None
+            or request.query_params.get("page_size") is not None
+        )
+        if should_paginate:
+            paginator = SessionRecordsPagination()
+            page = paginator.paginate_queryset(queryset, request, view=self)
+            serializer = self.get_serializer(page, many=True)
+            return paginator.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
     @action(detail=False, methods=["get"], url_path="request-stats")
     def request_stats(self, request):
@@ -3122,7 +3157,7 @@ class MentorIdentityVerificationViewSet(viewsets.ModelViewSet):
     queryset = MentorIdentityVerification.objects.all().order_by("-submitted_at")
     serializer_class = MentorIdentityVerificationSerializer
     permission_classes = [IsMentorOrAdminRole]
-    REVIEW_KEYS = ("id_front", "id_back", "address_front", "address_back")
+    REVIEW_KEYS = ("id_front", "id_back", "address_front", "address_back", "professional_certificate")
     REVIEW_DECISIONS = {"pending", "approved", "rejected"}
     REVIEW_CONTROL_FIELDS = {"document_review_status", "document_review_comments"}
 
@@ -3215,6 +3250,8 @@ class MentorIdentityVerificationViewSet(viewsets.ModelViewSet):
             keys_to_reset.add("address_front")
         if "aadhaar_back" in touched_fields:
             keys_to_reset.add("address_back")
+        if "professional_certificate_document" in touched_fields:
+            keys_to_reset.add("professional_certificate")
 
         previous_id_type = str(previous_values.get("id_proof_type") or "").strip()
         current_id_type = str(verification.id_proof_type or "").strip()
