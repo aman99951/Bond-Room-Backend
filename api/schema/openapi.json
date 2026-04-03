@@ -171,12 +171,24 @@
               "care_areas": {
                 "type": "object"
               },
+              "city": {
+                "maxLength": 80,
+                "type": "string"
+              },
               "city_state": {
                 "maxLength": 150,
                 "type": "string"
               },
               "consent": {
                 "type": "boolean"
+              },
+              "country": {
+                "maxLength": 80,
+                "type": "string"
+              },
+              "country_code": {
+                "maxLength": 8,
+                "type": "string"
               },
               "created_at": {
                 "format": "date-time",
@@ -218,6 +230,10 @@
                 "maxLength": 20,
                 "type": "string"
               },
+              "postal_code": {
+                "maxLength": 20,
+                "type": "string"
+              },
               "preferred_formats": {
                 "type": "object"
               },
@@ -231,6 +247,10 @@
                 "minimum": -9223372036854775808,
                 "nullable": true,
                 "type": "integer"
+              },
+              "state": {
+                "maxLength": 80,
+                "type": "string"
               },
               "timezone": {
                 "maxLength": 50,
@@ -478,6 +498,11 @@
       },
       "MenteeRegister": {
         "properties": {
+          "avatar": {
+            "format": "binary",
+            "nullable": true,
+            "type": "string"
+          },
           "city": {
             "maxLength": 80,
             "type": "string"
@@ -705,12 +730,24 @@
                     "care_areas": {
                       "type": "object"
                     },
+                    "city": {
+                      "maxLength": 80,
+                      "type": "string"
+                    },
                     "city_state": {
                       "maxLength": 150,
                       "type": "string"
                     },
                     "consent": {
                       "type": "boolean"
+                    },
+                    "country": {
+                      "maxLength": 80,
+                      "type": "string"
+                    },
+                    "country_code": {
+                      "maxLength": 8,
+                      "type": "string"
                     },
                     "created_at": {
                       "format": "date-time",
@@ -752,6 +789,10 @@
                       "maxLength": 20,
                       "type": "string"
                     },
+                    "postal_code": {
+                      "maxLength": 20,
+                      "type": "string"
+                    },
                     "preferred_formats": {
                       "type": "object"
                     },
@@ -765,6 +806,10 @@
                       "minimum": -9223372036854775808,
                       "nullable": true,
                       "type": "integer"
+                    },
+                    "state": {
+                      "maxLength": 80,
+                      "type": "string"
                     },
                     "timezone": {
                       "maxLength": 50,
@@ -923,12 +968,24 @@
           "care_areas": {
             "type": "object"
           },
+          "city": {
+            "maxLength": 80,
+            "type": "string"
+          },
           "city_state": {
             "maxLength": 150,
             "type": "string"
           },
           "consent": {
             "type": "boolean"
+          },
+          "country": {
+            "maxLength": 80,
+            "type": "string"
+          },
+          "country_code": {
+            "maxLength": 8,
+            "type": "string"
           },
           "created_at": {
             "format": "date-time",
@@ -970,6 +1027,10 @@
             "maxLength": 20,
             "type": "string"
           },
+          "postal_code": {
+            "maxLength": 20,
+            "type": "string"
+          },
           "preferred_formats": {
             "type": "object"
           },
@@ -983,6 +1044,10 @@
             "minimum": -9223372036854775808,
             "nullable": true,
             "type": "integer"
+          },
+          "state": {
+            "maxLength": 80,
+            "type": "string"
           },
           "timezone": {
             "maxLength": 50,
@@ -1254,6 +1319,11 @@
             "nullable": true,
             "type": "string"
           },
+          "professional_certificate_document": {
+            "format": "binary",
+            "nullable": true,
+            "type": "string"
+          },
           "reviewed_at": {
             "format": "date-time",
             "nullable": true,
@@ -1430,6 +1500,10 @@
             },
             "type": "array"
           },
+          "city": {
+            "maxLength": 80,
+            "type": "string"
+          },
           "city_state": {
             "maxLength": 150,
             "type": "string"
@@ -1437,6 +1511,14 @@
           "consent": {
             "default": false,
             "type": "boolean"
+          },
+          "country": {
+            "maxLength": 80,
+            "type": "string"
+          },
+          "country_code": {
+            "maxLength": 8,
+            "type": "string"
           },
           "dob": {
             "format": "date",
@@ -1486,14 +1568,28 @@
             "default": false,
             "type": "boolean"
           },
+          "postal_code": {
+            "maxLength": 20,
+            "type": "string"
+          },
           "preferred_formats": {
             "items": {
               "type": "string"
             },
             "type": "array"
           },
+          "profile_image": {
+            "format": "binary",
+            "nullable": true,
+            "type": "string",
+            "writeOnly": true
+          },
           "qualification": {
             "maxLength": 150,
+            "type": "string"
+          },
+          "state": {
+            "maxLength": 80,
             "type": "string"
           },
           "timezone": {
