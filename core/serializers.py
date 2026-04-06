@@ -613,6 +613,11 @@ class VolunteerEventSerializer(serializers.ModelSerializer):
         required=False,
         allow_empty=True,
     )
+    gallery_images = serializers.ListField(
+        child=serializers.URLField(max_length=700),
+        required=False,
+        allow_empty=True,
+    )
 
     class Meta:
         model = VolunteerEvent
@@ -636,6 +641,26 @@ class VolunteerEventSerializer(serializers.ModelSerializer):
                 continue
             seen.add(role)
             cleaned.append(role)
+        return cleaned
+
+    def validate_gallery_images(self, value):
+        if value in (None, ""):
+            return []
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except json.JSONDecodeError as exc:
+                raise serializers.ValidationError("Invalid gallery images format.") from exc
+        if not isinstance(value, list):
+            raise serializers.ValidationError("Gallery images must be a list.")
+        cleaned = []
+        seen = set()
+        for item in value:
+            url = str(item or "").strip()
+            if not url or url in seen:
+                continue
+            seen.add(url)
+            cleaned.append(url)
         return cleaned
 
     def to_representation(self, instance):
