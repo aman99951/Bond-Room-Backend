@@ -2353,6 +2353,9 @@
             "nullable": true,
             "type": "string"
           },
+          "completion_brief": {
+            "type": "string"
+          },
           "created_at": {
             "format": "date-time",
             "readOnly": true,
@@ -2365,6 +2368,13 @@
           },
           "description": {
             "type": "string"
+          },
+          "gallery_images": {
+            "items": {
+              "format": "uri",
+              "type": "string"
+            },
+            "type": "array"
           },
           "id": {
             "readOnly": true,
@@ -2387,6 +2397,12 @@
           },
           "is_active": {
             "type": "boolean"
+          },
+          "joined_count": {
+            "format": "int64",
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "type": "integer"
           },
           "location": {
             "maxLength": 220,
