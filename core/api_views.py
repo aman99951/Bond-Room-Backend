@@ -1255,6 +1255,11 @@ class MenteeViewSet(viewsets.ModelViewSet):
             return queryset.filter(id=my_id) if my_id else queryset.none()
         return queryset.none()
 
+    @action(detail=False, methods=["get"], url_path="volunteer-count", permission_classes=[AllowAny])
+    def volunteer_count(self, request):
+        count = Mentee.objects.filter(volunteer_access=True).count()
+        return Response({"count": count})
+
     @action(detail=True, methods=["get", "put", "patch"], url_path="preferences")
     def preferences(self, request, pk=None):
         mentee = self.get_object()

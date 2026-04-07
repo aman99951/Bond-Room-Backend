@@ -695,6 +695,8 @@ class ApiAutomationCoverageTests(APITestCase):
             )
         if schema_path == "/api/auth/mobile-login/verify-otp/":
             return "POST", "/api/auth/mobile-login/verify-otp/", {"mobile": self.mentor.mobile, "otp": "000000"}, {400}
+        if schema_path == "/api/mentees/volunteer-count/":
+            return "POST", "/api/mentees/volunteer-count/", {}, {405}
         if schema_path == "/api/mentors/":
             return "POST", "/api/mentors/", {"first_name": "Bad"}, {401, 403}
         if schema_path == "/api/mentors/{id}/":
