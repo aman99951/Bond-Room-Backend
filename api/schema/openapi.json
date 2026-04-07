@@ -3934,6 +3934,28 @@
         ]
       }
     },
+    "/api/mentees/volunteer-count/": {
+      "get": {
+        "description": "",
+        "operationId": "volunteerCountMenteeGet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mentee"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
     "/api/mentees/{id}/": {
       "delete": {
         "description": "",
