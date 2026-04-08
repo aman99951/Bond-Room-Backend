@@ -728,7 +728,7 @@ class ApiAutomationCoverageTests(APITestCase):
 
     def _expected_positive_status(self, schema_path):
         if schema_path == "/api/sessions/{id}/recording-upload-signature/":
-            # Local/test environments may intentionally omit Cloudinary credentials.
+            # Local/test environments may intentionally omit S3 credentials/config.
             return {200, 503}
         if schema_path == "/api/sessions/{id}/realtime-transcript-chunk/":
             # May return 200 with empty transcript when STT provider is unavailable.

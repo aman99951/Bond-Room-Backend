@@ -1,6 +1,7 @@
 import json
 import os
 import time
+import uuid
 import hashlib
 import hmac
 import base64
@@ -135,9 +136,14 @@ from .emails import (
 )
 
 try:
-    from cloudinary.utils import api_sign_request
+    import boto3
 except Exception:
-    api_sign_request = None
+    boto3 = None
+
+try:
+    from botocore.config import Config as BotoConfig
+except Exception:
+    BotoConfig = None
 
 TRAINING_QUIZ_PASS_MARK = 7
 User = get_user_model()
@@ -223,6 +229,20 @@ def parse_bool(value):
     if isinstance(value, str):
         return value.strip().lower() in {"1", "true", "yes", "on"}
     return False
+
+
+def build_s3_object_url(*, bucket: str, key: str, region: str, custom_domain: str = "") -> str:
+    normalized_bucket = str(bucket or "").strip()
+    normalized_key = str(key or "").strip().lstrip("/")
+    normalized_region = str(region or "").strip() or "us-east-1"
+    domain = str(custom_domain or "").strip().rstrip("/")
+    if not normalized_bucket or not normalized_key:
+        return ""
+    if domain:
+        return f"https://{domain}/{normalized_key}"
+    if normalized_region == "us-east-1":
+        return f"https://{normalized_bucket}.s3.amazonaws.com/{normalized_key}"
+    return f"https://{normalized_bucket}.s3.{normalized_region}.amazonaws.com/{normalized_key}"
 
 
 SITE_SETTING_DONATE_LINK_ENABLED_KEY = "donate_link_enabled"
@@ -2374,13 +2394,13 @@ class SessionViewSet(viewsets.ModelViewSet):
         file_size = request.data.get("file_size_bytes")
         uploaded_file = request.FILES.get("recording_file") or request.data.get("recording_file")
         running_on_vercel = bool(os.environ.get("VERCEL", "").strip())
-        using_cloudinary = bool(getattr(settings, "USE_CLOUDINARY_MEDIA", False))
-        if uploaded_file and running_on_vercel and not using_cloudinary:
+        using_s3_media = bool(getattr(settings, "USE_S3_MEDIA", False))
+        if uploaded_file and running_on_vercel and not using_s3_media:
             return Response(
                 {
                     "detail": (
                         "recording_file upload is not supported on this deployment "
-                        "without cloud media storage. Configure CLOUDINARY_* env vars, "
+                        "without S3 media storage. Configure S3_MEDIA_BUCKET_NAME and AWS credentials, "
                         "or send recording_url/storage_key instead."
                     )
                 },
@@ -2467,38 +2487,83 @@ class SessionViewSet(viewsets.ModelViewSet):
         resolve_session_participant_role(request, session)
         require_role(request, {ROLE_MENTOR, ROLE_ADMIN})
 
-        cloud_name = str(getattr(settings, "CLOUDINARY_CLOUD_NAME", "") or "").strip()
-        api_key = str(getattr(settings, "CLOUDINARY_API_KEY", "") or "").strip()
-        api_secret = str(getattr(settings, "CLOUDINARY_API_SECRET", "") or "").strip()
-        folder = str(getattr(settings, "CLOUDINARY_FOLDER", "bond-room") or "bond-room").strip().strip("/")
+        s3_bucket = str(getattr(settings, "S3_MEDIA_BUCKET_NAME", "") or "").strip()
+        s3_region = str(getattr(settings, "AWS_S3_REGION_NAME", "") or "").strip() or "us-east-1"
+        s3_endpoint_url = str(getattr(settings, "AWS_S3_ENDPOINT_URL", "") or "").strip()
+        s3_custom_domain = str(getattr(settings, "S3_MEDIA_CUSTOM_DOMAIN", "") or "").strip()
+        expires_seconds = max(60, int(getattr(settings, "S3_PRESIGNED_UPLOAD_EXPIRES_SECONDS", 900) or 900))
+        recordings_prefix = str(
+            getattr(settings, "S3_MEDIA_RECORDINGS_PREFIX", "session_recordings") or "session_recordings"
+        ).strip().strip("/")
 
-        if not cloud_name or not api_key or not api_secret or not api_sign_request:
+        if not s3_bucket or not boto3:
             return Response(
-                {"detail": "Cloudinary signing is not configured on backend."},
+                {"detail": "S3 upload signing is not configured on backend."},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 
-        timestamp = int(time.time())
-        public_id = f"session-{session.id}-{timestamp}"
-        params_to_sign = {
-            "folder": folder,
-            "public_id": public_id,
-            "timestamp": timestamp,
+        file_name = str(request.data.get("file_name", "") or "").strip()
+        content_type = str(request.data.get("content_type", "") or "").strip() or "video/webm"
+        file_ext = os.path.splitext(file_name)[1].lower()
+        if not file_ext or len(file_ext) > 10:
+            file_ext = ".webm"
+        if not file_ext.startswith("."):
+            file_ext = f".{file_ext}"
+
+        key_parts = [part for part in [recordings_prefix, f"session-{session.id}"] if part]
+        key_prefix = "/".join(key_parts)
+        object_key = f"{key_prefix}/{int(time.time())}-{uuid.uuid4().hex}{file_ext}"
+        params = {
+            "Bucket": s3_bucket,
+            "Key": object_key,
+            "ContentType": content_type,
         }
-        signature = api_sign_request(params_to_sign, api_secret)
-        upload_url = f"https://api.cloudinary.com/v1_1/{cloud_name}/video/upload"
+        client_kwargs = {"region_name": s3_region}
+        if s3_endpoint_url:
+            client_kwargs["endpoint_url"] = s3_endpoint_url
+        if BotoConfig:
+            client_kwargs["config"] = BotoConfig(signature_version="s3v4")
+        aws_access_key_id = str(getattr(settings, "AWS_ACCESS_KEY_ID", "") or "").strip()
+        aws_secret_access_key = str(getattr(settings, "AWS_SECRET_ACCESS_KEY", "") or "").strip()
+        aws_session_token = str(getattr(settings, "AWS_SESSION_TOKEN", "") or "").strip()
+        if aws_access_key_id and aws_secret_access_key:
+            client_kwargs["aws_access_key_id"] = aws_access_key_id
+            client_kwargs["aws_secret_access_key"] = aws_secret_access_key
+        if aws_session_token:
+            client_kwargs["aws_session_token"] = aws_session_token
+
+        try:
+            s3_client = boto3.client("s3", **client_kwargs)
+            upload_url = s3_client.generate_presigned_url(
+                "put_object",
+                Params=params,
+                ExpiresIn=expires_seconds,
+                HttpMethod="PUT",
+            )
+        except Exception as exc:
+            return Response(
+                {
+                    "detail": "Unable to generate S3 upload signature.",
+                    "error": str(exc) if settings.DEBUG else "Check S3 configuration.",
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        recording_url = build_s3_object_url(
+            bucket=s3_bucket,
+            key=object_key,
+            region=s3_region,
+            custom_domain=s3_custom_domain,
+        )
 
         return Response(
             {
-                "provider": "cloudinary",
-                "resource_type": "video",
+                "provider": "s3",
                 "upload_url": upload_url,
-                "cloud_name": cloud_name,
-                "api_key": api_key,
-                "timestamp": timestamp,
-                "folder": folder,
-                "public_id": public_id,
-                "signature": signature,
+                "method": "PUT",
+                "headers": {"Content-Type": content_type},
+                "storage_key": object_key,
+                "recording_url": recording_url,
+                "expires_in": expires_seconds,
             }
         )
 

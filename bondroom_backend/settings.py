@@ -253,41 +253,71 @@ STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
-CLOUDINARY_CLOUD_NAME = os.environ.get("CLOUDINARY_CLOUD_NAME", "").strip()
-CLOUDINARY_API_KEY = os.environ.get("CLOUDINARY_API_KEY", "").strip()
-CLOUDINARY_API_SECRET = os.environ.get("CLOUDINARY_API_SECRET", "").strip()
-CLOUDINARY_FOLDER = os.environ.get("CLOUDINARY_FOLDER", "bond-room").strip().strip("/")
-cloudinary_secure_value = os.environ.get("CLOUDINARY_SECURE", "true").strip().lower()
-CLOUDINARY_SECURE = cloudinary_secure_value not in {"0", "false", "no"}
-USE_CLOUDINARY_MEDIA = bool(
-    CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET
+S3_MEDIA_BUCKET_NAME = (
+    os.environ.get("S3_MEDIA_BUCKET_NAME", "").strip()
+    or os.environ.get("AWS_STORAGE_BUCKET_NAME", "").strip()
 )
+AWS_S3_REGION_NAME = (
+    os.environ.get("AWS_S3_REGION_NAME", "").strip()
+    or os.environ.get("AWS_REGION", "").strip()
+    or os.environ.get("AWS_DEFAULT_REGION", "").strip()
+    or "us-east-1"
+)
+AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID", "").strip()
+AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY", "").strip()
+AWS_SESSION_TOKEN = os.environ.get("AWS_SESSION_TOKEN", "").strip()
+AWS_S3_ENDPOINT_URL = os.environ.get("AWS_S3_ENDPOINT_URL", "").strip() or None
+AWS_S3_SIGNATURE_VERSION = os.environ.get("AWS_S3_SIGNATURE_VERSION", "s3v4").strip() or "s3v4"
+S3_MEDIA_PREFIX = os.environ.get("S3_MEDIA_PREFIX", "media").strip().strip("/")
+S3_MEDIA_RECORDINGS_PREFIX = os.environ.get("S3_MEDIA_RECORDINGS_PREFIX", "session_recordings").strip().strip("/")
+S3_MEDIA_CUSTOM_DOMAIN = (
+    os.environ.get("S3_MEDIA_CUSTOM_DOMAIN", "").strip()
+    or os.environ.get("AWS_S3_CUSTOM_DOMAIN", "").strip()
+) or None
+S3_PRESIGNED_UPLOAD_EXPIRES_SECONDS = max(
+    60, int(os.environ.get("S3_PRESIGNED_UPLOAD_EXPIRES_SECONDS", "900"))
+)
+USE_S3_MEDIA = bool(S3_MEDIA_BUCKET_NAME)
 
-if PUBLIC_BASE_URL and not USE_CLOUDINARY_MEDIA:
+if PUBLIC_BASE_URL and not USE_S3_MEDIA:
     MEDIA_URL = f"{PUBLIC_BASE_URL.rstrip('/')}/media/"
 
 # Vercel serverless functions use a read-only deployment filesystem.
 # Keep media writes in /tmp.
-if os.environ.get("VERCEL", "").strip() and not USE_CLOUDINARY_MEDIA:
+if os.environ.get("VERCEL", "").strip() and not USE_S3_MEDIA:
     MEDIA_ROOT = Path("/tmp/media")
     MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
 
-if USE_CLOUDINARY_MEDIA:
-    for app_name in ("cloudinary", "cloudinary_storage"):
-        if app_name not in INSTALLED_APPS:
-            INSTALLED_APPS.append(app_name)
+if USE_S3_MEDIA:
+    if "storages" not in INSTALLED_APPS:
+        INSTALLED_APPS.append("storages")
 
-    CLOUDINARY_STORAGE = {
-        "CLOUD_NAME": CLOUDINARY_CLOUD_NAME,
-        "API_KEY": CLOUDINARY_API_KEY,
-        "API_SECRET": CLOUDINARY_API_SECRET,
-        "SECURE": CLOUDINARY_SECURE,
-        "FOLDER": CLOUDINARY_FOLDER or "bond-room",
+    s3_storage_options = {
+        "bucket_name": S3_MEDIA_BUCKET_NAME,
+        "region_name": AWS_S3_REGION_NAME,
+        "signature_version": AWS_S3_SIGNATURE_VERSION,
+        "default_acl": None,
+        "file_overwrite": False,
     }
+    if S3_MEDIA_PREFIX:
+        s3_storage_options["location"] = S3_MEDIA_PREFIX
+    if AWS_ACCESS_KEY_ID:
+        s3_storage_options["access_key"] = AWS_ACCESS_KEY_ID
+    if AWS_SECRET_ACCESS_KEY:
+        s3_storage_options["secret_key"] = AWS_SECRET_ACCESS_KEY
+    if AWS_SESSION_TOKEN:
+        s3_storage_options["security_token"] = AWS_SESSION_TOKEN
+    if AWS_S3_ENDPOINT_URL:
+        s3_storage_options["endpoint_url"] = AWS_S3_ENDPOINT_URL
+    if S3_MEDIA_CUSTOM_DOMAIN:
+        s3_storage_options["custom_domain"] = S3_MEDIA_CUSTOM_DOMAIN
+        s3_storage_options["querystring_auth"] = False
+        MEDIA_URL = f"https://{S3_MEDIA_CUSTOM_DOMAIN.strip().rstrip('/')}/"
 
     STORAGES = {
         "default": {
-            "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+            "BACKEND": "storages.backends.s3.S3Storage",
+            "OPTIONS": s3_storage_options,
         },
         "staticfiles": {
             "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
