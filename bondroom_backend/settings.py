@@ -279,6 +279,15 @@ S3_PRESIGNED_UPLOAD_EXPIRES_SECONDS = max(
 )
 USE_S3_MEDIA = bool(S3_MEDIA_BUCKET_NAME)
 
+# Safety: on Vercel/serverless we often don't have AWS credentials. If a bucket name is
+# present (sometimes inherited from generic AWS env vars) but credentials are missing,
+# S3 uploads will crash with 500s (e.g. mentor profile photo PATCH). Prefer local /tmp media.
+if USE_S3_MEDIA and os.environ.get("VERCEL", "").strip():
+    has_static_creds = bool(AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY)
+    has_session_creds = bool(AWS_SESSION_TOKEN)
+    if not has_static_creds and not has_session_creds:
+        USE_S3_MEDIA = False
+
 if PUBLIC_BASE_URL and not USE_S3_MEDIA:
     MEDIA_URL = f"{PUBLIC_BASE_URL.rstrip('/')}/media/"
 
