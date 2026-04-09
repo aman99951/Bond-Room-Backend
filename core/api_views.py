@@ -34,6 +34,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from .location_catalog import get_cities_for_state, get_states
 from .models import (
     AdminAccount,
+    ContactOtpRequest,
     DonationTransaction,
     MatchRecommendation,
     Mentor,
@@ -520,6 +521,10 @@ def normalize_email(value):
 def mentor_contact_cache_key(channel, value):
     normalized = normalize_email(value) if channel == "email" else normalize_mobile(value)
     return f"mentor-contact:{channel}:{normalized}"
+
+
+def normalize_contact_for_channel(channel: str, value: str) -> str:
+    return normalize_email(value) if channel == "email" else normalize_mobile(value)
 
 
 def get_user_role_value(user):
@@ -1134,6 +1139,9 @@ class MentorContactSendOtpView(GenericAPIView):
                 verification.phone_otp_attempts = 0
             verification.save()
         else:
+            # Production note: do not rely on Django cache here. In serverless / multi-worker
+            # deployments the default cache is per-process and won't survive between OTP send
+            # and verify calls, causing false "OTP not requested" errors.
             if channel == "email":
                 email = serializer.validated_data["email"]
                 if Mentor.objects.filter(email__iexact=email).exists() or User.objects.filter(email__iexact=email).exists():
@@ -1141,7 +1149,7 @@ class MentorContactSendOtpView(GenericAPIView):
                         {"email": "This email is already registered."},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
-                cache_key = mentor_contact_cache_key(channel, email)
+                normalized_contact = normalize_contact_for_channel(channel, email)
             else:
                 mobile = serializer.validated_data["mobile"]
                 if find_mentor_by_mobile(mobile):
@@ -1149,12 +1157,17 @@ class MentorContactSendOtpView(GenericAPIView):
                         {"mobile": "This mobile number is already registered."},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
-                cache_key = mentor_contact_cache_key(channel, mobile)
+                normalized_contact = normalize_contact_for_channel("phone", mobile)
 
-            cache.set(
-                cache_key,
-                {"otp_hash": otp_hash, "expires_at": expiry.isoformat()},
-                timeout=5 * 60,
+            # Upsert so resends overwrite previous OTP state.
+            ContactOtpRequest.objects.update_or_create(
+                channel="email" if channel == "email" else "phone",
+                normalized_contact=normalized_contact,
+                defaults={
+                    "otp_hash": otp_hash,
+                    "expires_at": expiry,
+                    "attempts": 0,
+                },
             )
         return Response(
             {
@@ -1218,25 +1231,27 @@ class MentorContactVerifyOtpView(GenericAPIView):
                 if channel == "email"
                 else serializer.validated_data.get("mobile")
             )
-            cache_key = mentor_contact_cache_key(channel, contact_value)
-            cached_value = cache.get(cache_key)
-            if not cached_value:
-                return Response({"detail": "OTP was not requested for this contact."}, status=status.HTTP_400_BAD_REQUEST)
+            normalized_contact = normalize_contact_for_channel(
+                "email" if channel == "email" else "phone",
+                contact_value,
+            )
+            req = ContactOtpRequest.objects.filter(
+                channel="email" if channel == "email" else "phone",
+                normalized_contact=normalized_contact,
+            ).first()
+            if not req:
+                return Response(
+                    {"detail": "OTP was not requested for this contact."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-            expires_at_raw = cached_value.get("expires_at")
-            try:
-                expires_at = timezone.datetime.fromisoformat(expires_at_raw)
-                if timezone.is_naive(expires_at):
-                    expires_at = timezone.make_aware(expires_at, timezone.get_current_timezone())
-            except Exception:
-                expires_at = None
-
-            if expires_at and expires_at < now:
-                cache.delete(cache_key)
+            if req.expires_at and req.expires_at < now:
+                req.delete()
                 return Response({"detail": "OTP expired."}, status=status.HTTP_400_BAD_REQUEST)
-            if otp_hash != cached_value.get("otp_hash"):
+            if otp_hash != req.otp_hash:
+                ContactOtpRequest.objects.filter(pk=req.pk).update(attempts=req.attempts + 1)
                 return Response({"detail": "Invalid OTP."}, status=status.HTTP_400_BAD_REQUEST)
-            cache.delete(cache_key)
+            req.delete()
         return Response({"message": f"{channel.title()} verified successfully."})
 
 

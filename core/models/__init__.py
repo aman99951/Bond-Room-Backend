@@ -26,6 +26,7 @@ from .mentor_onboarding import (
     MentorTrainingProgress,
     TrainingModule,
 )
+from .contact_otp import ContactOtpRequest
 from .matching import MatchRecommendation, MenteeRequest
 from .admin_account import AdminAccount
 from .user_profile import UserProfile
@@ -51,6 +52,7 @@ __all__ = [
     'SessionIssueReport',
     'MentorIdentityVerification',
     'MentorContactVerification',
+    'ContactOtpRequest',
     'MentorOnboardingStatus',
     'TrainingModule',
     'MentorTrainingProgress',
