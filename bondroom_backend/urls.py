@@ -59,7 +59,7 @@ def serve_media(request, path):
 
 urlpatterns = [
     path('', api_root, name='api_root'),
-    path('admin/', admin.site.urls),
+    path('django-admin/', admin.site.urls),
     path('api/login/', BondRoomTokenObtainPairView.as_view(), name='api_login'),
     path('api/admin/login/', BondRoomAdminTokenObtainPairView.as_view(), name='api_admin_login'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),

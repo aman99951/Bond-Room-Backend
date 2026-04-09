@@ -1465,15 +1465,6 @@ class MentorViewSet(viewsets.ModelViewSet):
             serializer.is_valid(raise_exception=True)
             updated_profile = serializer.save(mentor=mentor)
 
-            if getattr(updated_profile, "profile_photo", None):
-                try:
-                    avatar_url = build_absolute_media_url(updated_profile.profile_photo.url or "", request=request)
-                except Exception:
-                    avatar_url = ""
-                if avatar_url and mentor.avatar != avatar_url:
-                    mentor.avatar = avatar_url
-                    mentor.save(update_fields=["avatar", "updated_at"])
-
             return Response(MentorProfileSerializer(updated_profile, context={"request": request}).data)
         return Response(MentorProfileSerializer(profile, context={"request": request}).data)
 

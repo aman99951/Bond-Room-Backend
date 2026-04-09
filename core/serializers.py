@@ -177,7 +177,7 @@ IDENTITY_PROOF_NUMBER_RULES = {
         "message": "Aadhaar number must be exactly 12 digits.",
     },
     "passport": {
-        "pattern": re.compile(r"^[A-Z][1-9][0-9]{6}$"),
+        "pattern": re.compile(r"^[A-Z][0-9]{7}$"),
         "message": "Passport number must follow format: 1 uppercase letter, then 7 digits.",
     },
     "pan_card": {
