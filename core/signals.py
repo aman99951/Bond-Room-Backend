@@ -128,7 +128,12 @@ def generate_recommendations_for_request(
     instance: MenteeRequest, *, replace_existing: bool = True
 ):
     if not instance.allow_auto_match or instance.safety_flag:
-        return
+        return {
+            "generated": False,
+            "count": 0,
+            "reason_code": "auto_match_disabled_or_safety_flagged",
+            "detail": "Auto-match is disabled or the request is safety-flagged.",
+        }
 
     if replace_existing:
         MatchRecommendation.objects.filter(
@@ -139,7 +144,12 @@ def generate_recommendations_for_request(
     mentor_qs = Mentor.objects.filter(onboarding_status__current_status="completed")
     mentor_pool = list(mentor_qs[:max_mentors]) if max_mentors > 0 else list(mentor_qs[:25])
     if not mentor_pool:
-        return
+        return {
+            "generated": False,
+            "count": 0,
+            "reason_code": "no_completed_mentors",
+            "detail": "No completed mentors are currently available for recommendations.",
+        }
     mentors = filter_mentors(instance, mentor_pool)
     if not mentors:
         mentors = mentor_pool
@@ -147,6 +157,7 @@ def generate_recommendations_for_request(
     eligible_mentors_by_id = {mentor.id: mentor for mentor in mentors}
 
     result, _error = _call_openai(instance, mentors)
+    created_count = 0
     if result and result.get("recs"):
         max_recs = _get_max_int("OPENAI_MAX_RECOMMENDATIONS", 3)
         for rec in result["recs"][:max_recs]:
@@ -172,10 +183,46 @@ def generate_recommendations_for_request(
                 response_id=result["response_id"],
                 prompt_hash=result["prompt_hash"],
             )
-        return
+            created_count += 1
+        if created_count > 0:
+            return {
+                "generated": True,
+                "count": created_count,
+                "reason_code": "openai_success",
+                "detail": "",
+            }
+        return {
+            "generated": False,
+            "count": 0,
+            "reason_code": "openai_no_valid_mentor_match",
+            "detail": "OpenAI returned recommendations, but none matched eligible mentors.",
+        }
 
     # OpenAI-only mode: if OpenAI fails or returns no valid rows, keep recommendations empty.
-    return
+    error_text = str(_error or "").strip()
+    reason_code = "openai_empty_response"
+    detail = "OpenAI returned an empty recommendation response."
+    if not error_text:
+        pass
+    elif "429" in error_text:
+        reason_code = "openai_rate_limited"
+        detail = "OpenAI rate limit or quota exceeded (HTTP 429)."
+    elif "401" in error_text or "403" in error_text:
+        reason_code = "openai_auth_failed"
+        detail = "OpenAI authentication failed. Check API key/project permissions."
+    elif "missing_api_key" in error_text:
+        reason_code = "openai_api_key_missing"
+        detail = "OPENAI_API_KEY is missing on backend."
+    else:
+        reason_code = "openai_request_failed"
+        detail = error_text
+
+    return {
+        "generated": False,
+        "count": 0,
+        "reason_code": reason_code,
+        "detail": detail,
+    }
 
 
 @receiver(post_save, sender=MenteeRequest)

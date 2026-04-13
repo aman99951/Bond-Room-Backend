@@ -1433,8 +1433,9 @@ class MentorViewSet(viewsets.ModelViewSet):
             return Response([])
 
         should_refresh = role == ROLE_MENTEE or request.query_params.get("refresh") in {"1", "true", "True"}
+        generation_status = None
         if should_refresh:
-            generate_recommendations_for_request(req)
+            generation_status = generate_recommendations_for_request(req)
 
         recs = (
             MatchRecommendation.objects.filter(
@@ -1444,13 +1445,24 @@ class MentorViewSet(viewsets.ModelViewSet):
             .select_related("mentor")
             .order_by("-score")
         )
-        return Response(
-            MatchRecommendationSerializer(
-                recs,
-                many=True,
-                context={"request": request},
-            ).data
-        )
+        serialized_recs = MatchRecommendationSerializer(
+            recs,
+            many=True,
+            context={"request": request},
+        ).data
+        if serialized_recs:
+            return Response(serialized_recs)
+        if generation_status and not bool(generation_status.get("generated")):
+            return Response(
+                {
+                    "results": serialized_recs,
+                    "detail": str(generation_status.get("detail", "") or "").strip() or "No recommendations generated.",
+                    "reason_code": str(generation_status.get("reason_code", "") or "").strip() or "unknown",
+                    "generated_count": int(generation_status.get("count", 0) or 0),
+                    "source": "openai",
+                }
+            )
+        return Response({"results": serialized_recs})
 
     @action(detail=True, methods=["get", "put", "patch"], url_path="profile")
     def profile(self, request, pk=None):
