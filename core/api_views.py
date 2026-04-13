@@ -262,6 +262,84 @@ def discover_s3_bucket_region(bucket: str, timeout_seconds: float = 3.0) -> str:
     return str(headers.get("x-amz-bucket-region", "") or "").strip()
 
 
+def build_s3_presigned_get_url(
+    *,
+    bucket: str,
+    key: str,
+    region: str,
+    endpoint_url: str = "",
+    expires_seconds: int = 3600,
+) -> str:
+    normalized_bucket = str(bucket or "").strip()
+    normalized_key = str(key or "").strip().lstrip("/")
+    normalized_region = str(region or "").strip() or "us-east-1"
+    normalized_endpoint = str(endpoint_url or "").strip()
+    if not normalized_bucket or not normalized_key or not boto3:
+        return ""
+
+    client_kwargs = {"region_name": normalized_region}
+    if normalized_endpoint:
+        client_kwargs["endpoint_url"] = normalized_endpoint
+    if BotoConfig:
+        client_kwargs["config"] = BotoConfig(signature_version="s3v4")
+    aws_access_key_id = str(getattr(settings, "AWS_ACCESS_KEY_ID", "") or "").strip()
+    aws_secret_access_key = str(getattr(settings, "AWS_SECRET_ACCESS_KEY", "") or "").strip()
+    aws_session_token = str(getattr(settings, "AWS_SESSION_TOKEN", "") or "").strip()
+    if aws_access_key_id and aws_secret_access_key:
+        client_kwargs["aws_access_key_id"] = aws_access_key_id
+        client_kwargs["aws_secret_access_key"] = aws_secret_access_key
+    if aws_session_token:
+        client_kwargs["aws_session_token"] = aws_session_token
+
+    try:
+        s3_client = boto3.client("s3", **client_kwargs)
+        return str(
+            s3_client.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": normalized_bucket, "Key": normalized_key},
+                ExpiresIn=max(60, int(expires_seconds or 3600)),
+                HttpMethod="GET",
+            )
+            or ""
+        ).strip()
+    except Exception:
+        return ""
+
+
+def serialize_session_recording_with_access_url(recording, request):
+    data = SessionRecordingSerializer(recording, context={"request": request}).data
+    storage_key = str(data.get("storage_key", "") or "").strip().lstrip("/")
+    if not storage_key:
+        return data
+
+    s3_bucket = str(getattr(settings, "S3_MEDIA_BUCKET_NAME", "") or "").strip()
+    if not s3_bucket or not boto3:
+        return data
+    configured_s3_region = str(getattr(settings, "AWS_S3_REGION_NAME", "") or "").strip()
+    s3_region = configured_s3_region or "us-east-1"
+    s3_endpoint_url = str(getattr(settings, "AWS_S3_ENDPOINT_URL", "") or "").strip()
+    if not s3_endpoint_url and (not configured_s3_region or s3_region == "us-east-1"):
+        discovered_bucket_region = discover_s3_bucket_region(s3_bucket)
+        if discovered_bucket_region:
+            s3_region = discovered_bucket_region
+
+    download_expires_seconds = max(
+        60, int(getattr(settings, "S3_PRESIGNED_DOWNLOAD_EXPIRES_SECONDS", 3600) or 3600)
+    )
+    signed_download_url = build_s3_presigned_get_url(
+        bucket=s3_bucket,
+        key=storage_key,
+        region=s3_region,
+        endpoint_url=s3_endpoint_url,
+        expires_seconds=download_expires_seconds,
+    )
+    if signed_download_url:
+        data["recording_url"] = signed_download_url
+        data["recording_access_mode"] = "presigned_get"
+        data["recording_url_expires_in"] = download_expires_seconds
+    return data
+
+
 SITE_SETTING_DONATE_LINK_ENABLED_KEY = "donate_link_enabled"
 
 
@@ -2400,7 +2478,7 @@ class SessionViewSet(viewsets.ModelViewSet):
         resolve_session_participant_role(request, session)
         recording, _ = SessionRecording.objects.get_or_create(session=session)
         if request.method == "GET":
-            return Response(SessionRecordingSerializer(recording, context={"request": request}).data)
+            return Response(serialize_session_recording_with_access_url(recording, request))
 
         require_role(request, {ROLE_MENTOR, ROLE_ADMIN})
         status_value = str(request.data.get("status", "")).strip().lower()
@@ -2501,7 +2579,7 @@ class SessionViewSet(viewsets.ModelViewSet):
                     },
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
-        return Response(SessionRecordingSerializer(recording, context={"request": request}).data)
+        return Response(serialize_session_recording_with_access_url(recording, request))
 
     @action(detail=True, methods=["post"], url_path="recording-upload-signature")
     def recording_upload_signature(self, request, pk=None):
