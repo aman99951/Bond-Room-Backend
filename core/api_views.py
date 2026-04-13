@@ -246,22 +246,6 @@ def build_s3_object_url(*, bucket: str, key: str, region: str, custom_domain: st
     return f"https://{normalized_bucket}.s3.{normalized_region}.amazonaws.com/{normalized_key}"
 
 
-def discover_s3_bucket_region(bucket: str, timeout_seconds: float = 3.0) -> str:
-    normalized_bucket = str(bucket or "").strip()
-    if not normalized_bucket:
-        return ""
-    probe_url = f"https://{normalized_bucket}.s3.amazonaws.com/"
-    probe_request = urllib.request.Request(probe_url, method="HEAD")
-    try:
-        with urllib.request.urlopen(probe_request, timeout=timeout_seconds) as response:
-            headers = response.headers
-    except urllib.error.HTTPError as exc:
-        headers = exc.headers
-    except Exception:
-        return ""
-    return str(headers.get("x-amz-bucket-region", "") or "").strip()
-
-
 SITE_SETTING_DONATE_LINK_ENABLED_KEY = "donate_link_enabled"
 
 
@@ -2510,8 +2494,7 @@ class SessionViewSet(viewsets.ModelViewSet):
         require_role(request, {ROLE_MENTOR, ROLE_ADMIN})
 
         s3_bucket = str(getattr(settings, "S3_MEDIA_BUCKET_NAME", "") or "").strip()
-        configured_s3_region = str(getattr(settings, "AWS_S3_REGION_NAME", "") or "").strip()
-        s3_region = configured_s3_region or "us-east-1"
+        s3_region = str(getattr(settings, "AWS_S3_REGION_NAME", "") or "").strip() or "us-east-1"
         s3_endpoint_url = str(getattr(settings, "AWS_S3_ENDPOINT_URL", "") or "").strip()
         s3_custom_domain = str(getattr(settings, "S3_MEDIA_CUSTOM_DOMAIN", "") or "").strip()
         expires_seconds = max(60, int(getattr(settings, "S3_PRESIGNED_UPLOAD_EXPIRES_SECONDS", 900) or 900))
@@ -2524,10 +2507,6 @@ class SessionViewSet(viewsets.ModelViewSet):
                 {"detail": "S3 upload signing is not configured on backend."},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
-        if not s3_endpoint_url and (not configured_s3_region or s3_region == "us-east-1"):
-            discovered_bucket_region = discover_s3_bucket_region(s3_bucket)
-            if discovered_bucket_region:
-                s3_region = discovered_bucket_region
 
         file_name = str(request.data.get("file_name", "") or "").strip()
         content_type = str(request.data.get("content_type", "") or "").strip() or "video/webm"
