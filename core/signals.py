@@ -8,7 +8,7 @@ from django.conf import settings
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 
-from .matching_logic import filter_mentors, score_mentors
+from .matching_logic import filter_mentors
 from .models import (
     MatchRecommendation,
     MenteeRequest,
@@ -174,21 +174,8 @@ def generate_recommendations_for_request(
             )
         return
 
-    scored = score_mentors(instance, mentors)
-    max_recs = _get_max_int("OPENAI_MAX_RECOMMENDATIONS", 3)
-    for rec in scored[:max_recs]:
-        MatchRecommendation.objects.create(
-            mentee_request=instance,
-            mentor=rec.mentor,
-            score=rec.score,
-            explanation=rec.explanation,
-            matched_topics=rec.matched_topics,
-            availability_overlap=rec.availability_overlap,
-            rating_score=rec.rating_score,
-            response_time_score=rec.response_time_score,
-            status="suggested",
-            source="rules",
-        )
+    # OpenAI-only mode: if OpenAI fails or returns no valid rows, keep recommendations empty.
+    return
 
 
 @receiver(post_save, sender=MenteeRequest)
