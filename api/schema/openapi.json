@@ -315,6 +315,7 @@
               "seed",
               "rules",
               "openai",
+              "openrouter",
               "manual"
             ],
             "type": "string"
@@ -874,6 +875,7 @@
                     "seed",
                     "rules",
                     "openai",
+                    "openrouter",
                     "manual"
                   ],
                   "type": "string"
