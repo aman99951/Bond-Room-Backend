@@ -89,6 +89,7 @@ class MatchRecommendation(models.Model):
         ('seed', 'Seed'),
         ('rules', 'Rules'),
         ('openai', 'OpenAI'),
+        ('openrouter', 'OpenRouter'),
         ('manual', 'Manual'),
     ]
 

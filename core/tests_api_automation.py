@@ -5,7 +5,6 @@ import warnings
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 from rest_framework.schemas.openapi import SchemaGenerator
 from rest_framework.test import APITestCase
@@ -578,7 +577,7 @@ class ApiAutomationCoverageTests(APITestCase):
             return {"signal_type": "mentee_transcript", "payload": {"transcript_excerpt": "mentee seed"}}
         if schema_path == "/api/sessions/{id}/realtime-transcript-chunk/":
             return {
-                "audio_chunk": SimpleUploadedFile("chunk.webm", b"RIFFseedWEBM", content_type="audio/webm"),
+                "transcript_excerpt": "Seed transcript from web speech API.",
                 "created_at": timezone.now().isoformat(),
             }
         if schema_path == "/api/sessions/{id}/recording/":
@@ -720,8 +719,6 @@ class ApiAutomationCoverageTests(APITestCase):
                 return_value=(mock_questions, "openai"),
             ):
                 return client_method(path, payload or {}, format="json")
-        if schema_path == "/api/sessions/{id}/realtime-transcript-chunk/" and method == "POST":
-            return client_method(path, payload or {})
         if method in {"POST", "PUT", "PATCH"}:
             return client_method(path, payload or {}, format="json")
         return client_method(path, format="json")

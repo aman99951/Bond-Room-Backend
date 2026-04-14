@@ -414,14 +414,215 @@ def transcribe_audio_chunk_with_openai(uploaded_file):
     return "", last_error
 
 
-def generate_meeting_summary_with_openai(session, transcript):
+def _env_flag(env_key: str, default: bool) -> bool:
+    raw = os.environ.get(env_key, "")
+    if not raw:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _meeting_summary_provider() -> str:
+    return "openai" if _env_flag("OPENAI", True) else "openrouter"
+
+
+def _extract_json_text(raw_text: str) -> str:
+    text = str(raw_text or "").strip()
+    if not text:
+        return ""
+    if text.startswith("```"):
+        lines = text.splitlines()
+        if len(lines) >= 3 and lines[-1].strip().startswith("```"):
+            text = "\n".join(lines[1:-1]).strip()
+    if text.startswith("{") and text.endswith("}"):
+        return text
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        return text[start : end + 1].strip()
+    return text
+
+
+def _openrouter_message_text(message):
+    if not isinstance(message, dict):
+        return ""
+    content = message.get("content")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict):
+                chunk = item.get("text")
+                if isinstance(chunk, str) and chunk.strip():
+                    parts.append(chunk)
+        return "\n".join(parts).strip()
+    return ""
+
+
+def _build_transcript_from_session_signals(session: Session) -> str:
+    signals = SessionMeetingSignal.objects.filter(
+        session=session,
+        signal_type__in=[
+            "transcript",
+            "mentor_transcript",
+            "mentee_transcript",
+            "transcript_bundle",
+            "mentor_bundle",
+            "mentee_bundle",
+        ],
+    ).order_by("created_at", "id")
+    lines = []
+    for row in signals:
+        payload = row.payload if isinstance(row.payload, dict) else {}
+        speaker = str(payload.get("speaker_role") or row.sender_role or "unknown").strip().lower()
+        speaker_label = "Mentor" if speaker == "mentor" else ("Mentee" if speaker == "mentee" else "Participant")
+        excerpt = str(
+            payload.get("transcript_excerpt")
+            or payload.get("transcript")
+            or payload.get("text")
+            or ""
+        ).strip()
+        if excerpt:
+            lines.append(f"{speaker_label}: {excerpt}")
+        segments = payload.get("segments")
+        if isinstance(segments, list):
+            for item in segments:
+                segment = str(item or "").strip()
+                if segment:
+                    lines.append(f"{speaker_label}: {segment}")
+
+    deduped = []
+    for line in lines:
+        if deduped and deduped[-1] == line:
+            continue
+        deduped.append(line)
+    return "\n".join(deduped).strip()
+
+
+def generate_meeting_summary_with_ai(session, transcript):
+    provider = _meeting_summary_provider()
+    transcript_text = str(transcript or "").strip()
+    transcript_from_signals = _build_transcript_from_session_signals(session)
+    if transcript_text and transcript_from_signals:
+        if transcript_text in transcript_from_signals:
+            transcript_text = transcript_from_signals
+        elif transcript_from_signals in transcript_text:
+            transcript_text = transcript_text
+        else:
+            transcript_text = f"{transcript_from_signals}\n\nAdditional notes:\n{transcript_text}"
+    elif transcript_from_signals:
+        transcript_text = transcript_from_signals
+
+    if not transcript_text:
+        raise RuntimeError("Transcript is required for summary generation.")
+
+    if provider == "openrouter":
+        api_key = str(os.environ.get("OPENROUTER_API_KEY", "") or "").strip()
+        if not api_key:
+            raise RuntimeError("OPENROUTER_API_KEY is not configured.")
+        model_candidates = []
+        for item in [
+            os.environ.get("OPENROUTER_MEETING_SUMMARY_MODEL", ""),
+            os.environ.get("OPENROUTER_MODEL", ""),
+            "openai/gpt-4o-mini",
+        ]:
+            candidate = str(item or "").strip()
+            if candidate and candidate not in model_candidates:
+                model_candidates.append(candidate)
+        transcript_excerpt = transcript_text[:120000]
+        prompt_payload = {
+            "session": {
+                "id": session.id,
+                "scheduled_start": session.scheduled_start.isoformat() if session.scheduled_start else "",
+                "scheduled_end": session.scheduled_end.isoformat() if session.scheduled_end else "",
+                "mentor_id": session.mentor_id,
+                "mentee_id": session.mentee_id,
+            },
+            "requirements": {
+                "language": "English",
+                "summary_length": "short",
+                "include_action_items": True,
+                "include_key_highlights": True,
+            },
+            "transcript": transcript_excerpt,
+            "output_schema": {
+                "summary": "string",
+                "highlights": ["string"],
+                "action_items": ["string"],
+            },
+        }
+        system_prompt = (
+            "You summarize mentoring sessions. "
+            "Return strict JSON only with keys summary, highlights, and action_items. "
+            "Do not include markdown."
+        )
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": json.dumps(prompt_payload)},
+        ]
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+
+        def _openrouter_request(payload):
+            request = urllib.request.Request(
+                "https://openrouter.ai/api/v1/chat/completions",
+                data=json.dumps(payload).encode("utf-8"),
+                headers=headers,
+            )
+            with urllib.request.urlopen(request, timeout=30) as response:
+                return json.loads(response.read().decode("utf-8"))
+
+        last_error = ""
+        for model in model_candidates:
+            for request_body in [
+                {"model": model, "response_format": {"type": "json_object"}, "messages": messages},
+                {"model": model, "messages": messages},
+            ]:
+                try:
+                    payload = _openrouter_request(request_body)
+                    choices = payload.get("choices") or []
+                    message = (choices[0] or {}).get("message", {}) if choices else {}
+                    output_text = _openrouter_message_text(message)
+                    if not output_text:
+                        last_error = f"empty_response:{model}"
+                        continue
+                    json_text = _extract_json_text(output_text)
+                    parsed = {}
+                    try:
+                        parsed = json.loads(json_text) if json_text else {}
+                    except json.JSONDecodeError:
+                        parsed = {"summary": output_text}
+
+                    summary = str(parsed.get("summary", "")).strip()
+                    if not summary:
+                        last_error = f"missing_summary:{model}"
+                        continue
+                    highlights = parsed.get("highlights")
+                    action_items = parsed.get("action_items")
+                    return {
+                        "summary": summary,
+                        "highlights": highlights if isinstance(highlights, list) else [],
+                        "action_items": action_items if isinstance(action_items, list) else [],
+                        "model": model,
+                        "source": "openrouter",
+                    }
+                except urllib.error.HTTPError as exc:
+                    detail = ""
+                    try:
+                        detail = exc.read().decode("utf-8", errors="ignore").strip()
+                    except Exception:
+                        detail = ""
+                    last_error = f"HTTP{exc.code}:{model}:{detail[:220]}".strip()
+                except Exception as exc:
+                    last_error = f"{model}:{exc.__class__.__name__}:{str(exc)[:220]}"
+
+        raise RuntimeError(f"OpenRouter summary failed: {last_error or 'unknown_error'}")
+
     api_key = settings.OPENAI_API_KEY
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY is not configured.")
-
-    transcript_text = str(transcript or "").strip()
-    if not transcript_text:
-        raise RuntimeError("Transcript is required for summary generation.")
 
     model = (
         os.environ.get("OPENAI_MEETING_SUMMARY_MODEL")
@@ -507,6 +708,7 @@ def generate_meeting_summary_with_openai(session, transcript):
         "highlights": highlights if isinstance(highlights, list) else [],
         "action_items": action_items if isinstance(action_items, list) else [],
         "model": model,
+        "source": "openai",
     }
 
 
@@ -1459,7 +1661,7 @@ class MentorViewSet(viewsets.ModelViewSet):
                     "detail": str(generation_status.get("detail", "") or "").strip() or "No recommendations generated.",
                     "reason_code": str(generation_status.get("reason_code", "") or "").strip() or "unknown",
                     "generated_count": int(generation_status.get("count", 0) or 0),
-                    "source": "openai",
+                    "source": str(generation_status.get("source", "") or "").strip() or "openai",
                 }
             )
         return Response({"results": serialized_recs})
@@ -2354,28 +2556,34 @@ class SessionViewSet(viewsets.ModelViewSet):
         participant_role = resolve_session_participant_role(request, session)
         if participant_role not in {"mentor", "mentee"}:
             return Response({"detail": "Only mentor or mentee can stream transcript chunks."}, status=status.HTTP_403_FORBIDDEN)
-
-        audio_chunk = request.FILES.get("audio_chunk")
-        if not audio_chunk:
-            return Response({"detail": "audio_chunk file is required."}, status=status.HTTP_400_BAD_REQUEST)
-
-        transcript, stt_error = transcribe_audio_chunk_with_openai(audio_chunk)
-        transcript_excerpt = re.sub(r"\s+", " ", str(transcript or "").strip())
+        payload = request.data.get("payload") or {}
+        if payload and not isinstance(payload, dict):
+            return Response({"detail": "payload must be an object."}, status=status.HTTP_400_BAD_REQUEST)
+        payload = dict(payload) if isinstance(payload, dict) else {}
+        transcript_excerpt = re.sub(
+            r"\s+",
+            " ",
+            str(
+                request.data.get("transcript_excerpt")
+                or request.data.get("transcript")
+                or payload.get("transcript_excerpt")
+                or payload.get("transcript")
+                or payload.get("text")
+                or ""
+            ).strip(),
+        )[:1200]
         if not transcript_excerpt:
-            payload = {"transcript_excerpt": "", "signal": None}
-            if settings.DEBUG:
-                payload["transcription_error"] = stt_error or "unknown"
-                payload["audio_size_bytes"] = int(getattr(audio_chunk, "size", 0) or 0)
-                payload["audio_content_type"] = str(getattr(audio_chunk, "content_type", "") or "")
-            return Response(payload, status=status.HTTP_200_OK)
+            return Response({"detail": "transcript_excerpt is required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        transcript_excerpt = transcript_excerpt[:1200]
         signal_type = "mentor_transcript" if participant_role == "mentor" else "mentee_transcript"
-        payload = {
-            "speaker_role": participant_role,
-            "transcript_excerpt": transcript_excerpt,
-            "created_at": str(request.data.get("created_at", "")).strip() or timezone.now().isoformat(),
-        }
+        payload.update(
+            {
+                "speaker_role": participant_role,
+                "transcript_excerpt": transcript_excerpt,
+                "created_at": str(request.data.get("created_at", "")).strip() or timezone.now().isoformat(),
+                "source": "web_speech_api",
+            }
+        )
         signal = SessionMeetingSignal.objects.create(
             session=session,
             sender_role=participant_role,
@@ -2394,8 +2602,39 @@ class SessionViewSet(viewsets.ModelViewSet):
     def recording(self, request, pk=None):
         session = self.get_object()
         resolve_session_participant_role(request, session)
+        role = user_role(request.user)
         recording, _ = SessionRecording.objects.get_or_create(session=session)
         if request.method == "GET":
+            metadata = recording.metadata if isinstance(recording.metadata, dict) else {}
+            existing_summary = str(metadata.get("meeting_summary", "")).strip()
+            should_attempt_summary = (
+                not existing_summary
+                and role in {ROLE_MENTOR, ROLE_ADMIN}
+                and str(session.status or "").strip().lower() in {"completed", "approved", "in_progress"}
+            )
+            if should_attempt_summary:
+                try:
+                    summary_payload = generate_meeting_summary_with_ai(session, "")
+                    merged_metadata = dict(metadata)
+                    merged_metadata.update(
+                        {
+                            "meeting_summary": summary_payload.get("summary", ""),
+                            "meeting_highlights": summary_payload.get("highlights", []),
+                            "meeting_action_items": summary_payload.get("action_items", []),
+                            "summary_generated_at": timezone.now().isoformat(),
+                            "summary_model": summary_payload.get("model", ""),
+                            "summary_source": summary_payload.get("source", ""),
+                        }
+                    )
+                    recording.metadata = merged_metadata
+                    recording.save(update_fields=["metadata", "updated_at"])
+                except Exception as exc:
+                    # Keep endpoint non-blocking; expose latest error in metadata for debugging.
+                    merged_metadata = dict(metadata)
+                    merged_metadata["summary_error"] = str(exc)[:600]
+                    merged_metadata["summary_error_at"] = timezone.now().isoformat()
+                    recording.metadata = merged_metadata
+                    recording.save(update_fields=["metadata", "updated_at"])
             return Response(SessionRecordingSerializer(recording, context={"request": request}).data)
 
         require_role(request, {ROLE_MENTOR, ROLE_ADMIN})
@@ -2671,13 +2910,8 @@ class SessionViewSet(viewsets.ModelViewSet):
         summary_payload = None
         summary_error = ""
         if generate_summary:
-            if not transcript:
-                return Response(
-                    {"detail": "transcript is required when generate_summary is true."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
             try:
-                summary_payload = generate_meeting_summary_with_openai(session, transcript)
+                summary_payload = generate_meeting_summary_with_ai(session, transcript)
                 recording, _ = SessionRecording.objects.get_or_create(session=session)
                 merged_metadata = dict(recording.metadata or {})
                 merged_metadata.update(
@@ -2687,6 +2921,7 @@ class SessionViewSet(viewsets.ModelViewSet):
                         "meeting_action_items": summary_payload.get("action_items", []),
                         "summary_generated_at": timezone.now().isoformat(),
                         "summary_model": summary_payload.get("model", ""),
+                        "summary_source": summary_payload.get("source", ""),
                     }
                 )
                 recording.metadata = merged_metadata
@@ -2710,6 +2945,7 @@ class SessionViewSet(viewsets.ModelViewSet):
                 "highlights": summary_payload.get("highlights", []) if summary_payload else [],
                 "action_items": summary_payload.get("action_items", []) if summary_payload else [],
                 "summary_model": summary_payload.get("model", "") if summary_payload else "",
+                "summary_source": summary_payload.get("source", "") if summary_payload else "",
                 "summary_error": summary_error,
                 "warning_count": warning_policy["warning_count"],
                 "warning_limit_before_disconnect": warning_policy["warning_limit_before_disconnect"],
@@ -2897,6 +3133,8 @@ class SessionViewSet(viewsets.ModelViewSet):
                     "recommended_action": analysis.get("recommended_action", "none"),
                     "confidence_score": analysis.get("confidence_score", 0.0),
                     "matched_terms": analysis.get("matched_terms", []),
+                    "reason": analysis.get("reason", ""),
+                    "reason_detail": analysis.get("reason_detail", ""),
                 }
             )
 
@@ -2987,7 +3225,7 @@ class SessionViewSet(viewsets.ModelViewSet):
             )
         cache.delete(streak_key)
 
-        cooldown_seconds = max(15, int(os.environ.get("VISION_ALERT_COOLDOWN_SECONDS", "60")))
+        cooldown_seconds = max(2, int(os.environ.get("VISION_ALERT_COOLDOWN_SECONDS", "8")))
         cooldown_key = f"session:{session.id}:vision-cooldown:{speaker_role}:{incident_type}"
         if cache.get(cooldown_key):
             return Response(
@@ -3001,9 +3239,7 @@ class SessionViewSet(viewsets.ModelViewSet):
                     "confidence_score": confidence_score,
                 }
             )
-        duplicate_window_seconds = max(
-            1, int(os.environ.get("VISION_FRAME_DEDUP_SECONDS", "3"))
-        )
+        duplicate_window_seconds = max(1, int(os.environ.get("VISION_FRAME_DEDUP_SECONDS", "1")))
         if cache.get(dedupe_key):
             return Response(
                 {
@@ -3035,7 +3271,20 @@ class SessionViewSet(viewsets.ModelViewSet):
             evidence_url=str(request.data.get("evidence_url", "")).strip(),
             detection_payload={
                 "reported_by_role": participant_role,
-                "model": str(os.environ.get("OPENAI_VISION_MODERATION_MODEL", "gpt-4.1-mini")).strip(),
+                "provider": "openai" if str(os.environ.get("OPENAI", "true")).strip().lower() in {"1", "true", "yes", "on"} else "openrouter",
+                "model": str(
+                    (
+                        os.environ.get("OPENAI_VISION_MODERATION_MODEL")
+                        if str(os.environ.get("OPENAI", "true")).strip().lower() in {"1", "true", "yes", "on"}
+                        else os.environ.get("OPENROUTER_VISION_MODERATION_MODEL")
+                    )
+                    or (
+                        os.environ.get("OPENAI_MODEL")
+                        if str(os.environ.get("OPENAI", "true")).strip().lower() in {"1", "true", "yes", "on"}
+                        else os.environ.get("OPENROUTER_MODEL")
+                    )
+                    or "gpt-4.1-mini"
+                ).strip(),
                 "source": "video_frame_auto",
             },
             flagged_mentee_snapshot=snapshot,

@@ -544,6 +544,51 @@ def _extract_response_text(payload):
     return ""
 
 
+def _env_flag(env_key, default=False):
+    raw = str(os.environ.get(env_key, "") or "").strip().lower()
+    if not raw:
+        return bool(default)
+    return raw in {"1", "true", "yes", "on"}
+
+
+def _ai_provider():
+    return "openai" if _env_flag("OPENAI", True) else "openrouter"
+
+
+def _extract_json_text(raw_text):
+    text = str(raw_text or "").strip()
+    if not text:
+        return ""
+    if text.startswith("```"):
+        lines = text.splitlines()
+        if len(lines) >= 3 and lines[-1].strip().startswith("```"):
+            text = "\n".join(lines[1:-1]).strip()
+    if text.startswith("{") and text.endswith("}"):
+        return text
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        return text[start : end + 1].strip()
+    return text
+
+
+def _openrouter_message_text(message):
+    if not isinstance(message, dict):
+        return ""
+    content = message.get("content")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict):
+                chunk = item.get("text")
+                if isinstance(chunk, str) and chunk.strip():
+                    parts.append(chunk)
+        return "\n".join(parts).strip()
+    return ""
+
+
 def classify_video_behavior_frame(*, frame_data_url, note=""):
     frame_value = str(frame_data_url or "").strip()
     if not frame_value.startswith("data:image/"):
@@ -556,7 +601,11 @@ def classify_video_behavior_frame(*, frame_data_url, note=""):
             "matched_terms": [],
             "reason": "invalid_image_data",
         }
-    api_key = str(getattr(settings, "OPENAI_API_KEY", "") or "").strip()
+    provider = _ai_provider()
+    if provider == "openrouter":
+        api_key = str(os.environ.get("OPENROUTER_API_KEY", "") or "").strip()
+    else:
+        api_key = str(getattr(settings, "OPENAI_API_KEY", "") or "").strip()
     if not api_key:
         return {
             "flagged": False,
@@ -578,52 +627,140 @@ def classify_video_behavior_frame(*, frame_data_url, note=""):
         "flagged(boolean), incident_type(string), labels(array of short strings), confidence_score(number 0-1), notes(string). "
         "incident_type must be one of: inappropriate_gesture, inappropriate_attire, sexual_content, harassment, unsafe_environment, unknown."
     )
-    body = {
-        "model": OPENAI_VISION_MODERATION_MODEL or "gpt-4.1-mini",
-        "text": {"format": {"type": "json_object"}},
-        "input": [
-            {
-                "role": "system",
-                "content": [{"type": "input_text", "text": instruction}],
-            },
+
+    if provider == "openrouter":
+        raw_models = [
+            os.environ.get("OPENROUTER_VISION_MODERATION_MODEL", ""),
+            os.environ.get("OPENROUTER_MODEL", ""),
+            "openai/gpt-4o-mini",
+        ]
+        model_candidates = []
+        for item in raw_models:
+            value = str(item or "").strip()
+            if value and value not in model_candidates:
+                model_candidates.append(value)
+        base_messages = [
+            {"role": "system", "content": instruction},
             {
                 "role": "user",
                 "content": [
-                    {
-                        "type": "input_text",
-                        "text": str(note or "Frame from ongoing video meeting."),
-                    },
-                    {
-                        "type": "input_image",
-                        "image_url": frame_value,
-                    },
+                    {"type": "text", "text": str(note or "Frame from ongoing video meeting.")},
+                    {"type": "image_url", "image_url": {"url": frame_value}},
                 ],
             },
-        ],
-    }
-    request = urllib.request.Request(
-        "https://api.openai.com/v1/responses",
-        data=json.dumps(body).encode("utf-8"),
-        headers={
+        ]
+        alt_messages = [
+            {"role": "system", "content": instruction},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": str(note or "Frame from ongoing video meeting.")},
+                    {"type": "image_url", "image_url": frame_value},
+                ],
+            },
+        ]
+        headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
-        },
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=20) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except (urllib.error.URLError, TimeoutError, ValueError):
-        return {
-            "flagged": False,
-            "incident_type": "unknown",
-            "severity": "low",
-            "recommended_action": "none",
-            "confidence_score": 0.0,
-            "matched_terms": [],
-            "reason": "vision_request_failed",
         }
 
-    raw_text = _extract_response_text(payload)
+        def _request_openrouter(request_body):
+            request = urllib.request.Request(
+                "https://openrouter.ai/api/v1/chat/completions",
+                data=json.dumps(request_body).encode("utf-8"),
+                headers=headers,
+            )
+            with urllib.request.urlopen(request, timeout=20) as response:
+                return json.loads(response.read().decode("utf-8"))
+
+        payload = None
+        raw_text = ""
+        last_error = ""
+        for model in model_candidates:
+            body_variants = [
+                {"model": model, "response_format": {"type": "json_object"}, "messages": base_messages},
+                {"model": model, "messages": base_messages},
+                {"model": model, "response_format": {"type": "json_object"}, "messages": alt_messages},
+                {"model": model, "messages": alt_messages},
+            ]
+            for attempt_body in body_variants:
+                try:
+                    payload = _request_openrouter(attempt_body)
+                    choices = payload.get("choices") if isinstance(payload, dict) else []
+                    message = (choices[0] or {}).get("message", {}) if isinstance(choices, list) and choices else {}
+                    raw_text = _extract_json_text(_openrouter_message_text(message))
+                    if raw_text:
+                        break
+                    last_error = f"empty_response:{model}"
+                except urllib.error.HTTPError as exc:
+                    detail = ""
+                    try:
+                        detail = exc.read().decode("utf-8", errors="ignore").strip()
+                    except Exception:
+                        detail = ""
+                    last_error = f"HTTP{exc.code}:{model}:{detail[:220]}".strip()
+                except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+                    last_error = f"{model}:{exc.__class__.__name__}:{str(exc)[:200]}"
+            if raw_text:
+                break
+        if not raw_text:
+            return {
+                "flagged": False,
+                "incident_type": "unknown",
+                "severity": "low",
+                "recommended_action": "none",
+                "confidence_score": 0.0,
+                "matched_terms": [],
+                "reason": "vision_request_failed",
+                "reason_detail": last_error[:280],
+            }
+    else:
+        body = {
+            "model": OPENAI_VISION_MODERATION_MODEL or "gpt-4.1-mini",
+            "text": {"format": {"type": "json_object"}},
+            "input": [
+                {
+                    "role": "system",
+                    "content": [{"type": "input_text", "text": instruction}],
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": str(note or "Frame from ongoing video meeting."),
+                        },
+                        {
+                            "type": "input_image",
+                            "image_url": frame_value,
+                        },
+                    ],
+                },
+            ],
+        }
+        request = urllib.request.Request(
+            "https://api.openai.com/v1/responses",
+            data=json.dumps(body).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=20) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+        except (urllib.error.URLError, TimeoutError, ValueError):
+            return {
+                "flagged": False,
+                "incident_type": "unknown",
+                "severity": "low",
+                "recommended_action": "none",
+                "confidence_score": 0.0,
+                "matched_terms": [],
+                "reason": "vision_request_failed",
+            }
+        raw_text = _extract_response_text(payload)
+
     parsed = {}
     if raw_text:
         try:
