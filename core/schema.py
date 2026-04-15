@@ -32,6 +32,7 @@ PUBLIC_PATHS = {
     "/api/site-settings/public/donate-link/",
     "/api/donations/razorpay/order/",
     "/api/donations/razorpay/verify/",
+    "/api/chatbot/respond/",
     "/api/schema/",
     "/api/docs/",
 }

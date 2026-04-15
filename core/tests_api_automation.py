@@ -522,6 +522,8 @@ class ApiAutomationCoverageTests(APITestCase):
             return {"mentor_id": self.mentor.id, "channel": "email", "otp": send.data["otp"]}
         if schema_path == "/api/auth/mobile-login/verify-otp/":
             return {"mobile": self.mentor.mobile, "role": "mentor", "otp": "123456"}
+        if schema_path == "/api/chatbot/respond/":
+            return {"message": "How are mentors verified?", "history": []}
         if schema_path == "/api/sessions/{id}/analyze-video-frame/":
             return {
                 "frame_data_url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7Y7gkAAAAASUVORK5CYII=",
@@ -700,6 +702,8 @@ class ApiAutomationCoverageTests(APITestCase):
             return "POST", "/api/mentors/", {"first_name": "Bad"}, {401, 403}
         if schema_path == "/api/mentors/{id}/":
             return "GET", "/api/mentors/999999/", {}, {404}
+        if schema_path == "/api/chatbot/respond/":
+            return "GET", "/api/chatbot/respond/", {}, {405}
         raise AssertionError(f"Unhandled negative public case for {schema_path}")
 
     def _request(self, method, path, payload, schema_path):

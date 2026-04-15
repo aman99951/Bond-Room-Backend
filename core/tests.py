@@ -114,6 +114,7 @@ class RecommendationEligibilityTests(TestCase):
             )
         return mentor
 
+    @patch.dict("os.environ", {"OPENAI": "true"}, clear=False)
     @patch("core.signals._call_openai")
     def test_generate_recommendations_only_uses_completed_onboarding_mentors(self, mock_call_openai):
         completed_mentor = self._create_mentor(suffix="1", completed_onboarding=True)

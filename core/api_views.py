@@ -866,9 +866,13 @@ class BondRoomChatbotView(APIView):
             history = []
 
         if not question:
+            fallback = (
+                "I can help with Bond Room questions about pricing, mentor verification, session safety, "
+                "mentor matching, age group, and session duration."
+            )
             return Response(
-                {"detail": "Message is required."},
-                status=status.HTTP_400_BAD_REQUEST,
+                {"answer": fallback, "provider": "fallback", "model": "fallback"},
+                status=status.HTTP_200_OK,
             )
 
         faq_answer = _find_faq_chatbot_answer(question)
