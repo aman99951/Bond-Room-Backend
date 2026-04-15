@@ -712,6 +712,191 @@ def generate_meeting_summary_with_ai(session, transcript):
     }
 
 
+CHATBOT_FAQ_ANSWERS = [
+    (
+        "Is Bond Room really free for Teens?",
+        "Yes! 100% free. Our mentors volunteer their time because they believe in giving back to the next generation.",
+    ),
+    (
+        "How are mentors verified?",
+        "Every mentor undergoes background checks, identity verification, and training before they can join the platform.",
+    ),
+    (
+        "Are sessions safe and private?",
+        "Absolutely. All sessions are monitored using AI keyword detection and recorded for safety.",
+    ),
+    (
+        "Can I choose my own mentor?",
+        "Our AI suggests the best match, but you can also browse mentor profiles and request a specific mentor.",
+    ),
+    (
+        "What age group is this for?",
+        "Bond Room is designed for Teens aged 14-19 (typically 10th to 12th grade and early college Teens).",
+    ),
+    (
+        "How long are the sessions?",
+        "Sessions typically last 30-45 minutes, but can be shorter or longer based on the Teen's needs.",
+    ),
+]
+
+
+def _normalize_chatbot_question(value: str) -> str:
+    text = str(value or "").strip().lower()
+    text = re.sub(r"[^a-z0-9\s]", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _find_faq_chatbot_answer(question: str) -> str:
+    normalized = _normalize_chatbot_question(question)
+    if not normalized:
+        return ""
+    keyword_sets = [
+        ({"bond", "room", "free", "teen"}, CHATBOT_FAQ_ANSWERS[0][1]),
+        ({"mentor", "verified"}, CHATBOT_FAQ_ANSWERS[1][1]),
+        ({"session", "safe", "private"}, CHATBOT_FAQ_ANSWERS[2][1]),
+        ({"choose", "mentor"}, CHATBOT_FAQ_ANSWERS[3][1]),
+        ({"age", "group"}, CHATBOT_FAQ_ANSWERS[4][1]),
+        ({"long", "session"}, CHATBOT_FAQ_ANSWERS[5][1]),
+    ]
+    words = set(normalized.split())
+    for required_keywords, answer in keyword_sets:
+        if required_keywords.issubset(words):
+            return answer
+    return ""
+
+
+def _chatbot_provider() -> str:
+    default_provider_is_openai = _env_flag("OPENAI", True)
+    use_openai = _env_flag("BONDROOM_CHATBOT_USE_OPENAI", default_provider_is_openai)
+    return "openai" if use_openai else "openrouter"
+
+
+def _chatbot_system_prompt() -> str:
+    faq_lines = "\n".join([f"- {q} => {a}" for q, a in CHATBOT_FAQ_ANSWERS])
+    return (
+        "You are Bond Room's website chatbot. "
+        "Be concise, friendly, and answer only Bond Room related questions. "
+        "If asked outside Bond Room, politely redirect to Bond Room platform questions. "
+        "Use this FAQ exactly when relevant:\n"
+        f"{faq_lines}"
+    )
+
+
+def _openai_chatbot_reply(*, message: str, history: list) -> dict:
+    api_key = str(getattr(settings, "OPENAI_API_KEY", "") or "").strip()
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY is not configured.")
+
+    model = (
+        str(os.environ.get("OPENAI_CHATBOT_MODEL", "") or "").strip()
+        or str(os.environ.get("OPENAI_MODEL", "") or "").strip()
+        or "gpt-4o-mini"
+    )
+    messages = [{"role": "system", "content": _chatbot_system_prompt()}]
+    for item in history[-6:]:
+        role = str((item or {}).get("role", "")).strip().lower()
+        content = str((item or {}).get("content", "")).strip()
+        if role in {"user", "assistant"} and content:
+            messages.append({"role": role, "content": content})
+    messages.append({"role": "user", "content": message})
+
+    body = {"model": model, "messages": messages, "temperature": 0.4}
+    request = urllib.request.Request(
+        "https://api.openai.com/v1/chat/completions",
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    choices = payload.get("choices") or []
+    content = str((((choices[0] or {}).get("message") or {}).get("content") or "")).strip() if choices else ""
+    if not content:
+        raise RuntimeError("OpenAI returned an empty chatbot response.")
+    return {"answer": content, "provider": "openai", "model": model}
+
+
+def _openrouter_chatbot_reply(*, message: str, history: list) -> dict:
+    api_key = str(os.environ.get("OPENROUTER_API_KEY", "") or "").strip()
+    if not api_key:
+        raise RuntimeError("OPENROUTER_API_KEY is not configured.")
+
+    model = (
+        str(os.environ.get("OPENROUTER_CHATBOT_MODEL", "") or "").strip()
+        or str(os.environ.get("OPENROUTER_MODEL", "") or "").strip()
+        or "openai/gpt-4o-mini"
+    )
+    messages = [{"role": "system", "content": _chatbot_system_prompt()}]
+    for item in history[-6:]:
+        role = str((item or {}).get("role", "")).strip().lower()
+        content = str((item or {}).get("content", "")).strip()
+        if role in {"user", "assistant"} and content:
+            messages.append({"role": role, "content": content})
+    messages.append({"role": "user", "content": message})
+
+    body = {"model": model, "messages": messages, "temperature": 0.4}
+    request = urllib.request.Request(
+        "https://openrouter.ai/api/v1/chat/completions",
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    choices = payload.get("choices") or []
+    message_payload = (choices[0] or {}).get("message", {}) if choices else {}
+    content = _openrouter_message_text(message_payload)
+    if not content:
+        raise RuntimeError("OpenRouter returned an empty chatbot response.")
+    return {"answer": content, "provider": "openrouter", "model": model}
+
+
+class BondRoomChatbotView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        question = str(request.data.get("message", "")).strip()
+        history = request.data.get("history", [])
+        if not isinstance(history, list):
+            history = []
+
+        if not question:
+            return Response(
+                {"detail": "Message is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        faq_answer = _find_faq_chatbot_answer(question)
+        if faq_answer:
+            return Response(
+                {"answer": faq_answer, "provider": "faq", "model": "faq"},
+                status=status.HTTP_200_OK,
+            )
+
+        provider = _chatbot_provider()
+        try:
+            if provider == "openrouter":
+                ai_response = _openrouter_chatbot_reply(message=question, history=history)
+            else:
+                ai_response = _openai_chatbot_reply(message=question, history=history)
+            return Response(ai_response, status=status.HTTP_200_OK)
+        except Exception as exc:
+            fallback = (
+                "I can help with Bond Room questions about pricing, mentor verification, session safety, "
+                "mentor matching, age group, and session duration."
+            )
+            payload = {"answer": fallback, "provider": "fallback", "model": "fallback"}
+            if settings.DEBUG:
+                payload["debug_error"] = str(exc)
+                payload["debug_error_type"] = exc.__class__.__name__
+            return Response(payload, status=status.HTTP_200_OK)
+
+
 def normalize_mobile(value):
     return "".join(ch for ch in str(value or "") if ch.isdigit())
 
@@ -1978,6 +2163,11 @@ class VolunteerEventViewSet(viewsets.ModelViewSet):
         role = user_role(self.request.user)
         if role != ROLE_ADMIN:
             queryset = queryset.filter(is_active=True)
+        else:
+            status_param = str(self.request.query_params.get("status", "")).strip().lower()
+            if status_param in {VolunteerEvent.STATUS_UPCOMING, VolunteerEvent.STATUS_COMPLETED}:
+                return queryset.filter(status=status_param).order_by("-id")
+            return queryset.order_by("-id")
         status_param = str(self.request.query_params.get("status", "")).strip().lower()
         if status_param in {VolunteerEvent.STATUS_UPCOMING, VolunteerEvent.STATUS_COMPLETED}:
             queryset = queryset.filter(status=status_param)

@@ -24,6 +24,7 @@ class VolunteerEvent(models.Model):
     location = models.CharField(max_length=220, blank=True)
     organizer = models.CharField(max_length=220, blank=True)
     seats = models.PositiveIntegerField(default=0)
+    budget_spent = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     impact = models.CharField(max_length=220, blank=True)
     joined_count = models.PositiveIntegerField(default=0)
     completion_brief = models.TextField(blank=True)

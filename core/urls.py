@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 
 from .api_views import (
     AdminRegisterView,
+    BondRoomChatbotView,
     AdminDonateLinkSettingView,
     DonationTransactionViewSet,
     LocationCitiesView,
@@ -74,6 +75,7 @@ urlpatterns = [
     path("donations/razorpay/order/", RazorpayDonationOrderView.as_view(), name="donations-razorpay-order"),
     path("donations/razorpay/verify/", RazorpayDonationVerifyView.as_view(), name="donations-razorpay-verify"),
     path("auth/mobile-login/verify-otp/", MobileLoginOtpVerifyView.as_view(), name="mobile-login-verify-otp"),
+    path("chatbot/respond/", BondRoomChatbotView.as_view(), name="chatbot-respond"),
     path("auth/register/admin/", AdminRegisterView.as_view(), name="register-admin"),
     path("auth/register/mentee/", MenteeRegisterView.as_view(), name="register-mentee"),
     path("auth/register/mentor/", MentorRegisterView.as_view(), name="register-mentor"),

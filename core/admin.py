@@ -606,6 +606,7 @@ class VolunteerEventAdmin(admin.ModelAdmin):
         "stream",
         "location",
         "seats",
+        "budget_spent",
         "is_active",
         "updated_at",
     )

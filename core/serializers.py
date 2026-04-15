@@ -1,11 +1,14 @@
 from datetime import date, timedelta
 from hashlib import sha256
+from pathlib import Path
 from random import randint
 import json
 import re
+from uuid import uuid4
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.files.storage import default_storage
 from django.utils import timezone
 from rest_framework import serializers
 
@@ -618,6 +621,12 @@ class VolunteerEventSerializer(serializers.ModelSerializer):
         required=False,
         allow_empty=True,
     )
+    gallery_image_files = serializers.ListField(
+        child=serializers.ImageField(),
+        required=False,
+        allow_empty=True,
+        write_only=True,
+    )
 
     class Meta:
         model = VolunteerEvent
@@ -663,6 +672,54 @@ class VolunteerEventSerializer(serializers.ModelSerializer):
             cleaned.append(url)
         return cleaned
 
+    def _build_gallery_file_urls(self, files):
+        request = self.context.get("request")
+        uploaded_urls = []
+        for uploaded_file in files or []:
+            extension = Path(str(getattr(uploaded_file, "name", "") or "")).suffix.lower()
+            if not extension:
+                extension = ".jpg"
+            object_name = f"volunteer/events/gallery/{uuid4().hex}{extension}"
+            stored_path = default_storage.save(object_name, uploaded_file)
+            try:
+                raw_url = default_storage.url(stored_path)
+            except Exception:
+                raw_url = stored_path
+            absolute_url = build_absolute_media_url(raw_url, request=request)
+            if absolute_url:
+                uploaded_urls.append(absolute_url)
+        return uploaded_urls
+
+    @staticmethod
+    def _merge_urls(existing_urls, new_urls):
+        merged = []
+        seen = set()
+        for item in [*(existing_urls or []), *(new_urls or [])]:
+            url = str(item or "").strip()
+            if not url or url in seen:
+                continue
+            seen.add(url)
+            merged.append(url)
+        return merged
+
+    def create(self, validated_data):
+        gallery_files = validated_data.pop("gallery_image_files", [])
+        uploaded_urls = self._build_gallery_file_urls(gallery_files)
+        if uploaded_urls:
+            validated_data["gallery_images"] = self._merge_urls(validated_data.get("gallery_images", []), uploaded_urls)
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        gallery_files = validated_data.pop("gallery_image_files", [])
+        uploaded_urls = self._build_gallery_file_urls(gallery_files)
+        if uploaded_urls:
+            if "gallery_images" in validated_data:
+                base_gallery = validated_data.get("gallery_images", [])
+            else:
+                base_gallery = instance.gallery_images if isinstance(instance.gallery_images, list) else []
+            validated_data["gallery_images"] = self._merge_urls(base_gallery, uploaded_urls)
+        return super().update(instance, validated_data)
+
     def to_representation(self, instance):
         data = super().to_representation(instance)
         request = self.context.get("request")
@@ -671,6 +728,13 @@ class VolunteerEventSerializer(serializers.ModelSerializer):
             data["image"] = build_absolute_media_url(uploaded_file_url, request=request)
         else:
             data["image"] = build_absolute_media_url(data.get("image", ""), request=request)
+        gallery_images = data.get("gallery_images", [])
+        if isinstance(gallery_images, list):
+            data["gallery_images"] = [
+                build_absolute_media_url(str(item or "").strip(), request=request)
+                for item in gallery_images
+                if str(item or "").strip()
+            ]
         return data
 
 
