@@ -2350,6 +2350,13 @@
             },
             "type": "array"
           },
+          "budget_spent": {
+            "format": "decimal",
+            "maximum": 10000000000,
+            "minimum": -10000000000,
+            "multipleOf": 0.01,
+            "type": "string"
+          },
           "completed_on": {
             "format": "date",
             "nullable": true,
@@ -2370,6 +2377,14 @@
           },
           "description": {
             "type": "string"
+          },
+          "gallery_image_files": {
+            "items": {
+              "format": "binary",
+              "type": "string"
+            },
+            "type": "array",
+            "writeOnly": true
           },
           "gallery_images": {
             "items": {
@@ -2969,6 +2984,39 @@
                 "schema": {
                   "$ref": "#/components/schemas/MentorRegister"
                 }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/chatbot/respond/": {
+      "post": {
+        "description": "",
+        "operationId": "createBondRoomChatbotPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {}
+            },
+            "multipart/form-data": {
+              "schema": {}
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             },
             "description": ""
