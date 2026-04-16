@@ -4,6 +4,7 @@ from pathlib import Path
 from random import randint
 import json
 import re
+from urllib.parse import unquote, urlparse
 from uuid import uuid4
 
 from django.conf import settings
@@ -45,6 +46,16 @@ from .models import (
 
 
 User = get_user_model()
+
+try:
+    import boto3
+except Exception:  # pragma: no cover - optional dependency in some local setups
+    boto3 = None
+
+try:
+    from botocore.config import Config as BotoConfig
+except Exception:  # pragma: no cover
+    BotoConfig = None
 
 
 def generate_otp() -> str:
@@ -153,11 +164,75 @@ def ensure_username(base: str) -> str:
     return candidate
 
 
+def _extract_s3_bucket_key_from_url(raw_url: str):
+    parsed = urlparse(str(raw_url or "").strip())
+    if parsed.scheme not in {"http", "https"}:
+        return None, None
+
+    host = (parsed.netloc or "").split(":")[0].lower()
+    path = (parsed.path or "").lstrip("/")
+    if not host or not path:
+        return None, None
+
+    configured_bucket = str(getattr(settings, "S3_MEDIA_BUCKET_NAME", "") or "").strip()
+    custom_domain = str(getattr(settings, "S3_MEDIA_CUSTOM_DOMAIN", "") or "").strip().lower()
+    if custom_domain and host == custom_domain and configured_bucket:
+        return configured_bucket, unquote(path)
+
+    virtual_match = re.match(
+        r"^(?P<bucket>[^.]+)\.s3(?:[.-][a-z0-9-]+)*\.amazonaws\.com$",
+        host,
+    )
+    if virtual_match:
+        return virtual_match.group("bucket"), unquote(path)
+
+    if host == "s3.amazonaws.com" or host.startswith("s3.") or host.startswith("s3-"):
+        parts = path.split("/", 1)
+        if len(parts) == 2 and parts[0] and parts[1]:
+            return parts[0], unquote(parts[1])
+
+    return None, None
+
+
+def _build_presigned_s3_get_url(raw_url: str) -> str:
+    if not boto3:
+        return ""
+
+    bucket, key = _extract_s3_bucket_key_from_url(raw_url)
+    if not bucket or not key:
+        return ""
+
+    region = str(getattr(settings, "AWS_S3_REGION_NAME", "") or "").strip() or "us-east-1"
+    endpoint = str(getattr(settings, "AWS_S3_ENDPOINT_URL", "") or "").strip()
+    expires = int(getattr(settings, "S3_MEDIA_URL_EXPIRES", 3600) or 3600)
+    if expires <= 0:
+        expires = 3600
+    expires = min(expires, 604800)  # S3 max
+
+    try:
+        client_kwargs = {"region_name": region}
+        if endpoint:
+            client_kwargs["endpoint_url"] = endpoint
+        if BotoConfig is not None:
+            client_kwargs["config"] = BotoConfig(signature_version="s3v4")
+        s3_client = boto3.client("s3", **client_kwargs)
+        return s3_client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": bucket, "Key": key},
+            ExpiresIn=expires,
+        )
+    except Exception:
+        return ""
+
+
 def build_absolute_media_url(raw_url: str, request=None) -> str:
     value = str(raw_url or "").strip()
     if not value:
         return ""
     if value.startswith("http://") or value.startswith("https://"):
+        refreshed = _build_presigned_s3_get_url(value)
+        if refreshed:
+            return refreshed
         return value
     if request is not None:
         try:
