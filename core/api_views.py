@@ -1688,7 +1688,13 @@ class MentorContactSendOtpView(GenericAPIView):
             {
                 "message": f"{channel.title()} OTP sent successfully.",
                 "expires_at": expiry,
-                **({"otp": otp} if channel != "email" or settings.DEBUG else {}),
+                **(
+                    {"otp": otp}
+                    if channel != "email"
+                    or settings.DEBUG
+                    or getattr(settings, "USE_SQLITE_FOR_TESTS", False)
+                    else {}
+                ),
             }
         )
 
