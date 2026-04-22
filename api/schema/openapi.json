@@ -1823,6 +1823,57 @@
         ],
         "type": "object"
       },
+      "PasswordResetConfirm": {
+        "properties": {
+          "email": {
+            "format": "email",
+            "type": "string"
+          },
+          "new_password": {
+            "type": "string",
+            "writeOnly": true
+          },
+          "otp": {
+            "maxLength": 6,
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "otp",
+          "new_password"
+        ],
+        "type": "object"
+      },
+      "PasswordResetSendOtp": {
+        "properties": {
+          "email": {
+            "format": "email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "type": "object"
+      },
+      "PasswordResetVerifyOtp": {
+        "properties": {
+          "email": {
+            "format": "email",
+            "type": "string"
+          },
+          "otp": {
+            "maxLength": 6,
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "otp"
+        ],
+        "type": "object"
+      },
       "PayoutTransaction": {
         "properties": {
           "amount": {
@@ -2860,6 +2911,129 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ParentOtpVerify"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/auth/password-reset/confirm/": {
+      "post": {
+        "description": "",
+        "operationId": "createPasswordResetConfirmPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetConfirm"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetConfirm"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetConfirm"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordResetConfirm"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/auth/password-reset/send-otp/": {
+      "post": {
+        "description": "",
+        "operationId": "createPasswordResetSendOtpPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetSendOtp"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetSendOtp"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetSendOtp"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordResetSendOtp"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/auth/password-reset/verify-otp/": {
+      "post": {
+        "description": "",
+        "operationId": "createPasswordResetVerifyOtpPost",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetVerifyOtp"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetVerifyOtp"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetVerifyOtp"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordResetVerifyOtp"
                 }
               }
             },
