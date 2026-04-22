@@ -176,3 +176,34 @@ def send_volunteer_registration_confirmation_email(registration) -> bool:
             "Failed to send volunteer registration confirmation email to %s", recipient
         )
         return False
+
+
+def send_contact_otp_email(*, recipient: str, otp: str) -> bool:
+    normalized_recipient = str(recipient or "").strip().lower()
+    if not normalized_recipient:
+        return False
+
+    subject = "Bond Room verification code"
+    body = "\n".join(
+        [
+            "Your Bond Room verification code is:",
+            "",
+            f"{otp}",
+            "",
+            "This code is valid for 5 minutes.",
+            "If you did not request this, please ignore this email.",
+        ]
+    )
+
+    try:
+        message = EmailMultiAlternatives(
+            subject=subject,
+            body=body,
+            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "") or None,
+            to=[normalized_recipient],
+        )
+        message.send(fail_silently=False)
+        return True
+    except Exception:
+        logger.exception("Failed to send contact OTP email to %s", normalized_recipient)
+        return False

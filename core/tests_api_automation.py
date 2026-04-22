@@ -40,6 +40,9 @@ from core.schema import PUBLIC_PATHS
 
 POST_ONLY_PUBLIC_PATHS = {
     "/api/admin/login/",
+    "/api/auth/password-reset/send-otp/",
+    "/api/auth/password-reset/verify-otp/",
+    "/api/auth/password-reset/confirm/",
     "/api/auth/mobile-login/verify-otp/",
     "/api/auth/mentor-contact/send-otp/",
     "/api/auth/mentor-contact/verify-otp/",
@@ -515,13 +518,57 @@ class ApiAutomationCoverageTests(APITestCase):
         if schema_path == "/api/auth/mentor-contact/verify-otp/":
             send = self.client.post(
                 "/api/auth/mentor-contact/send-otp/",
-                {"mentor_id": self.mentor.id, "channel": "email"},
+                {"mentor_id": self.mentor.id, "channel": "phone"},
                 format="json",
             )
             self.assertEqual(send.status_code, 200, send.data)
-            return {"mentor_id": self.mentor.id, "channel": "email", "otp": send.data["otp"]}
+            return {"mentor_id": self.mentor.id, "channel": "phone", "otp": send.data["otp"]}
         if schema_path == "/api/auth/mobile-login/verify-otp/":
             return {"mobile": self.mentor.mobile, "role": "mentor", "otp": "123456"}
+        if schema_path == "/api/auth/password-reset/send-otp/":
+            return {"email": self.mentee_user.email}
+        if schema_path == "/api/auth/password-reset/verify-otp/":
+            send = self.client.post(
+                "/api/auth/password-reset/send-otp/",
+                {"email": self.mentee_user.email},
+                format="json",
+            )
+            self.assertEqual(send.status_code, 200, send.data)
+            return {"email": self.mentee_user.email, "otp": send.data["otp"]}
+        if schema_path == "/api/auth/password-reset/confirm/":
+            temp_token = uuid4().hex[:8]
+            temp_email = f"reset-flow-{temp_token}@example.com"
+            temp_user = get_user_model().objects.create_user(
+                username=f"reset_flow_{temp_token}",
+                email=temp_email,
+                password="TempFlowPass123!",
+                first_name="Reset",
+                last_name="Flow",
+            )
+            Mentee.objects.create(
+                first_name="Reset",
+                last_name="Flow",
+                grade="10th Grade",
+                email=temp_email,
+                dob=date(2010, 1, 1),
+                gender="Female",
+                city_state="Chennai",
+                timezone="Asia/Kolkata",
+                parent_mobile=f"+91123456{temp_token[:4]}",
+                parent_guardian_consent=True,
+            )
+            UserProfile.objects.get_or_create(user=temp_user, defaults={"role": "mentee"})
+            send = self.client.post(
+                "/api/auth/password-reset/send-otp/",
+                {"email": temp_email},
+                format="json",
+            )
+            self.assertEqual(send.status_code, 200, send.data)
+            return {
+                "email": temp_email,
+                "otp": send.data["otp"],
+                "new_password": "NewMenteePass123!",
+            }
         if schema_path == "/api/chatbot/respond/":
             return {"message": "How are mentors verified?", "history": []}
         if schema_path == "/api/sessions/{id}/analyze-video-frame/":
@@ -696,6 +743,17 @@ class ApiAutomationCoverageTests(APITestCase):
             )
         if schema_path == "/api/auth/mobile-login/verify-otp/":
             return "POST", "/api/auth/mobile-login/verify-otp/", {"mobile": self.mentor.mobile, "otp": "000000"}, {400}
+        if schema_path == "/api/auth/password-reset/send-otp/":
+            return "POST", "/api/auth/password-reset/send-otp/", {"email": "missing.user@test.com"}, {404}
+        if schema_path == "/api/auth/password-reset/verify-otp/":
+            return "POST", "/api/auth/password-reset/verify-otp/", {"email": self.mentee_user.email, "otp": "000000"}, {400}
+        if schema_path == "/api/auth/password-reset/confirm/":
+            return (
+                "POST",
+                "/api/auth/password-reset/confirm/",
+                {"email": self.mentee_user.email, "otp": "000000", "new_password": "NewMenteePass123!"},
+                {400},
+            )
         if schema_path == "/api/mentees/volunteer-count/":
             return "POST", "/api/mentees/volunteer-count/", {}, {405}
         if schema_path == "/api/mentors/":

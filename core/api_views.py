@@ -94,6 +94,9 @@ from .serializers import (
     MentorTrainingProgressSerializer,
     MentorWalletSerializer,
     MobileLoginOtpVerifySerializer,
+    PasswordResetConfirmSerializer,
+    PasswordResetSendOtpSerializer,
+    PasswordResetVerifyOtpSerializer,
     MenteePreferencesSerializer,
     MenteeRegisterSerializer,
     MenteeRequestSerializer,
@@ -131,6 +134,7 @@ from .abuse_monitoring import classify_abuse, classify_behavior_signal, classify
 from .signals import generate_recommendations_for_request
 from .emails import (
     send_admin_safety_alert_email,
+    send_contact_otp_email,
     send_mentee_welcome_email,
     send_mentor_welcome_email,
     send_volunteer_registration_confirmation_email,
@@ -965,6 +969,10 @@ def find_mentee_by_mobile(mobile_value):
     return None
 
 
+def password_reset_contact_key(email_value: str) -> str:
+    return f"password-reset:{normalize_email(email_value)}"
+
+
 def build_module_video_payload(module):
     outline = module.lesson_outline if isinstance(module.lesson_outline, list) else []
     first_title = (
@@ -1426,6 +1434,112 @@ class MobileLoginOtpVerifyView(GenericAPIView):
         return Response({"detail": "No account found for this mobile."}, status=status.HTTP_404_NOT_FOUND)
 
 
+class PasswordResetSendOtpView(GenericAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = PasswordResetSendOtpSerializer
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data["email"]
+        mentee = Mentee.objects.filter(email__iexact=email).first()
+        if not mentee:
+            return Response({"detail": "No mentee account found for this email."}, status=status.HTTP_404_NOT_FOUND)
+
+        user = User.objects.filter(email__iexact=email).first()
+        if not user:
+            return Response({"detail": "Linked user account not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        otp = generate_otp()
+        expiry = otp_expiry()
+        ContactOtpRequest.objects.update_or_create(
+            channel="email",
+            normalized_contact=password_reset_contact_key(email),
+            defaults={
+                "otp_hash": hash_otp(otp),
+                "expires_at": expiry,
+                "attempts": 0,
+            },
+        )
+        if not send_contact_otp_email(recipient=email, otp=otp):
+            return Response(
+                {"detail": "Unable to send email OTP right now. Please try again."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        expose_otp = bool(getattr(settings, "DEBUG", False) or getattr(settings, "USE_SQLITE_FOR_TESTS", False))
+        return Response(
+            {
+                "message": "Password reset OTP sent successfully.",
+                "expires_at": expiry,
+                **({"otp": otp} if expose_otp else {}),
+            }
+        )
+
+
+class PasswordResetVerifyOtpView(GenericAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = PasswordResetVerifyOtpSerializer
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data["email"]
+        otp_request = ContactOtpRequest.objects.filter(
+            channel="email",
+            normalized_contact=password_reset_contact_key(email),
+        ).first()
+        if not otp_request:
+            return Response({"detail": "OTP was not requested for this email."}, status=status.HTTP_400_BAD_REQUEST)
+
+        now = timezone.now()
+        if otp_request.expires_at and otp_request.expires_at < now:
+            otp_request.delete()
+            return Response({"detail": "OTP expired."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if hash_otp(serializer.validated_data["otp"]) != otp_request.otp_hash:
+            ContactOtpRequest.objects.filter(pk=otp_request.pk).update(attempts=otp_request.attempts + 1)
+            return Response({"detail": "Invalid OTP."}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({"message": "OTP verified successfully."})
+
+
+class PasswordResetConfirmView(GenericAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = PasswordResetConfirmSerializer
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data["email"]
+        otp_request = ContactOtpRequest.objects.filter(
+            channel="email",
+            normalized_contact=password_reset_contact_key(email),
+        ).first()
+        if not otp_request:
+            return Response({"detail": "OTP was not requested for this email."}, status=status.HTTP_400_BAD_REQUEST)
+
+        now = timezone.now()
+        if otp_request.expires_at and otp_request.expires_at < now:
+            otp_request.delete()
+            return Response({"detail": "OTP expired."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if hash_otp(serializer.validated_data["otp"]) != otp_request.otp_hash:
+            ContactOtpRequest.objects.filter(pk=otp_request.pk).update(attempts=otp_request.attempts + 1)
+            return Response({"detail": "Invalid OTP."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = User.objects.filter(email__iexact=email).first()
+        if not user:
+            return Response({"detail": "Linked user account not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        user.set_password(serializer.validated_data["new_password"])
+        user.save(update_fields=["password"])
+        otp_request.delete()
+        return Response({"message": "Password reset successful. You can login now."})
+
+
 class ParentConsentSendOtpView(GenericAPIView):
     permission_classes = [AllowAny]
     serializer_class = ParentOtpSendSerializer
@@ -1510,11 +1624,12 @@ class MentorContactSendOtpView(GenericAPIView):
             if not mentor:
                 return Response({"detail": "Mentor not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        otp = (settings.MENTOR_TEST_OTP or "").strip() or generate_otp()
         channel = serializer.validated_data["channel"]
+        otp = generate_otp() if channel == "email" else ((settings.MENTOR_TEST_OTP or "").strip() or generate_otp())
         now = timezone.now()
         expiry = otp_expiry()
         otp_hash = hash_otp(otp)
+        target_email = ""
 
         if mentor:
             verification, _ = MentorContactVerification.objects.get_or_create(mentor=mentor)
@@ -1541,6 +1656,7 @@ class MentorContactSendOtpView(GenericAPIView):
                         status=status.HTTP_400_BAD_REQUEST,
                     )
                 normalized_contact = normalize_contact_for_channel(channel, email)
+                target_email = email
             else:
                 mobile = serializer.validated_data["mobile"]
                 if find_mentor_by_mobile(mobile):
@@ -1560,11 +1676,19 @@ class MentorContactSendOtpView(GenericAPIView):
                     "attempts": 0,
                 },
             )
+        if channel == "email":
+            if mentor:
+                target_email = str(getattr(mentor, "email", "") or "").strip().lower()
+            if not send_contact_otp_email(recipient=target_email, otp=otp):
+                return Response(
+                    {"detail": "Unable to send email OTP right now. Please try again."},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
         return Response(
             {
                 "message": f"{channel.title()} OTP sent successfully.",
-                "otp": otp,
                 "expires_at": expiry,
+                **({"otp": otp} if channel != "email" or settings.DEBUG else {}),
             }
         )
 

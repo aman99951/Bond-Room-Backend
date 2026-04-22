@@ -9,6 +9,8 @@ from uuid import uuid4
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.storage import default_storage
 from django.utils import timezone
 from rest_framework import serializers
@@ -1268,6 +1270,46 @@ class MobileLoginOtpVerifySerializer(serializers.Serializer):
         allow_null=True,
     )
     otp = serializers.CharField(max_length=6)
+
+
+class PasswordResetSendOtpSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        attrs["email"] = str(attrs.get("email", "")).strip().lower()
+        return attrs
+
+
+class PasswordResetVerifyOtpSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp = serializers.CharField(max_length=6)
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        attrs["email"] = str(attrs.get("email", "")).strip().lower()
+        attrs["otp"] = str(attrs.get("otp", "")).strip()
+        return attrs
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp = serializers.CharField(max_length=6)
+    new_password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        attrs["email"] = str(attrs.get("email", "")).strip().lower()
+        attrs["otp"] = str(attrs.get("otp", "")).strip()
+
+        password_value = str(attrs.get("new_password", ""))
+        try:
+            validate_password(password_value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError({"new_password": list(exc.messages)})
+
+        attrs["new_password"] = password_value
+        return attrs
 
 
 class SessionDispositionActionSerializer(serializers.Serializer):
